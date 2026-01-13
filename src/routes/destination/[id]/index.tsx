@@ -1,0 +1,191 @@
+import { query, createAsync, useParams, A } from '@solidjs/router';
+import { eq, or, sql } from 'drizzle-orm';
+import { db } from '~/drizzle/client';
+import { EntityVariantWarehouse, EntityWarehouse, WarehouseTransaction } from '~/drizzle/schema';
+import { For, Show, Suspense } from 'solid-js';
+
+export const loadEntitiesForDestination = query(async (dest: string) => {
+    'use server';
+
+    // 1. Define the formatted string logic (Same as before)
+    const variantDetails = sql<string>`
+        ${EntityVariantWarehouse.length} || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
+        ${EntityVariantWarehouse.width}  || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
+        ${EntityVariantWarehouse.height} || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
+        ${EntityVariantWarehouse.thickness} || ' ' || ${EntityVariantWarehouse.thickness_unit}
+    `;
+
+    // 2. Perform the heavy aggregation on IDs ONLY (Fastest operation)
+    const sq = db.$with('sq').as(
+        db
+            .select({
+                entity_id: WarehouseTransaction.entity_id,
+                entity_variant_id: WarehouseTransaction.entity_variant_id,
+                net_quantity: sql<number>`SUM(
+                CASE
+                    WHEN ${WarehouseTransaction.destination_id} = ${dest}
+                    THEN COALESCE(CAST(${WarehouseTransaction.quantity} as REAL), 0)
+                    WHEN ${WarehouseTransaction.source_id} = ${dest}
+                    THEN -COALESCE(CAST(${WarehouseTransaction.quantity} as REAL), 0)
+                    ELSE 0
+                END)`.as('net_quantity'),
+            })
+            .from(WarehouseTransaction)
+            .where(or(eq(WarehouseTransaction.destination_id, dest), eq(WarehouseTransaction.source_id, dest)))
+            .groupBy(WarehouseTransaction.entity_id, WarehouseTransaction.entity_variant_id),
+    );
+
+    // 3. Join the lightweight result to the heavy tables
+    const rows = await db
+        .with(sq)
+        .select({
+            entity_id: sq.entity_id,
+            entity_variant_id: sq.entity_variant_id,
+            net_quantity: sq.net_quantity,
+            entity_name: EntityWarehouse.name,
+            variant_formatted: variantDetails,
+        })
+        .from(sq)
+        .leftJoin(EntityWarehouse, eq(sq.entity_id, EntityWarehouse.id))
+        .leftJoin(EntityVariantWarehouse, eq(sq.entity_variant_id, EntityVariantWarehouse.id))
+        // Optional: Filter out zero quantities to keep the UI clean
+        .where(sql`${sq.net_quantity} != 0`);
+
+    return rows;
+}, 'all-entities-for-destination');
+
+export default function DestinationPage() {
+    const params = useParams<{ id: string }>();
+    const inventory = createAsync(() => loadEntitiesForDestination(params.id));
+
+    return (
+        <div class="w-full mx-auto px-4 py-12">
+            {/* Header Section */}
+            <div class="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-white tracking-tight">Inventory Status</h1>
+                    <p class="text-zinc-400 mt-2 text-sm">
+                        Current stock levels for Destination{' '}
+                        <span class="font-mono text-zinc-300">#{params.id.slice(0, 8)}</span>
+                    </p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <A class="bg-secondary py-2.5 px-2 rounded-lg" href={`ledger`}>
+                        Open Ledger
+                    </A>
+                    <A class="bg-secondary py-2.5 px-2 rounded-lg" href={`/destination/${params.id}/transaction/new`}>
+                        New Transaction
+                    </A>
+                </div>
+            </div>
+
+            {/* Main Surface Card */}
+            <div class="bg-brand border border-zinc-800/50 rounded-2xl overflow-hidden shadow-2xl shadow-black">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-zinc-800">
+                                <th class="py-5 pl-8 pr-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                    Item
+                                </th>
+                                <th class="py-5 px-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                    Dimension
+                                </th>
+                                <th class="py-5 pl-4 pr-8 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                    Net Quantity
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-800/50">
+                            <Suspense fallback={<TableSkeleton />}>
+                                <Show when={inventory() && inventory()!.length > 0} fallback={<EmptyState />}>
+                                    <For each={inventory()}>
+                                        {(item) => (
+                                            <tr class="group hover:bg-white/2 transition-colors duration-200">
+                                                {/* Entity Name & ID Column */}
+                                                <td class="py-5 pl-8 pr-4">
+                                                    <div class="flex flex-col">
+                                                        <span class="font-medium text-white text-sm">
+                                                            {item.entity_name}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Variant Details Column */}
+                                                <td class="py-5 px-4">
+                                                    <div class="flex flex-col">
+                                                        {/* Show formatted string if it exists, else fallback */}
+                                                        <span class="text-sm text-zinc-300">
+                                                            {item.variant_formatted ?? 'NA'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Quantity Column */}
+                                                <td class="py-5 pl-4 pr-8 text-right">
+                                                    <span
+                                                        class={`text-sm font-medium ${
+                                                            (item.net_quantity ?? 0) < 0 ? 'text-red-400' : 'text-white'
+                                                        }`}
+                                                    >
+                                                        {item.net_quantity?.toLocaleString() ?? 0}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </For>
+                                </Show>
+                            </Suspense>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- Sub Components ---
+
+const EmptyState = () => (
+    <tr>
+        <td colspan={3} class="py-16 text-center">
+            <div class="flex flex-col items-center justify-center gap-3">
+                <div class="p-3 bg-zinc-900 rounded-full border border-zinc-800">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="w-6 h-6 text-zinc-500"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"
+                        />
+                    </svg>
+                </div>
+                <p class="text-zinc-500 text-sm font-medium">No inventory records found</p>
+            </div>
+        </td>
+    </tr>
+);
+
+const TableSkeleton = () => (
+    <For each={[1, 2, 3, 4, 5]}>
+        {() => (
+            <tr class="animate-pulse">
+                <td class="py-5 pl-8 pr-4">
+                    <div class="h-4 w-32 bg-zinc-800/50 rounded"></div>
+                </td>
+                <td class="py-5 px-4">
+                    <div class="h-6 w-24 bg-zinc-800/50 rounded-md"></div>
+                </td>
+                <td class="py-5 pl-4 pr-8 text-right flex justify-end">
+                    <div class="h-4 w-12 bg-zinc-800/50 rounded"></div>
+                </td>
+            </tr>
+        )}
+    </For>
+);
