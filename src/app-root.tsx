@@ -22,6 +22,7 @@ const IconUsers = (p: any) => (
 export default function AppRoot(props: { children: JSX.Element }) {
     const navigationItems: SidebarItem[] = [
         { label: 'Dashboard', href: '/dashboard', icon: IconGrid },
+        { label: 'Items', href: '/items', icon: IconGrid },
         { label: 'Construction Sites', href: '/sites', icon: IconUsers },
     ];
     return (

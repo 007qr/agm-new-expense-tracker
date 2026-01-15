@@ -1,13 +1,13 @@
-import { query, createAsync, useParams, A } from '@solidjs/router';
+import { query, createAsync, useNavigate, useParams, A } from '@solidjs/router';
 import { eq, or, sql } from 'drizzle-orm';
 import { db } from '~/drizzle/client';
-import { EntityVariantWarehouse, EntityWarehouse, WarehouseTransaction } from '~/drizzle/schema';
+import { Destination, EntityVariantWarehouse, EntityWarehouse, WarehouseTransaction } from '~/drizzle/schema';
 import { For, Show, Suspense } from 'solid-js';
 
 export const loadEntitiesForDestination = query(async (dest: string) => {
     'use server';
 
-    // 1. Define the formatted string logic (Same as before)
+    // 1. Define the formatted string logic
     const variantDetails = sql<string>`
         ${EntityVariantWarehouse.length} || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
         ${EntityVariantWarehouse.width}  || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
@@ -47,16 +47,23 @@ export const loadEntitiesForDestination = query(async (dest: string) => {
         })
         .from(sq)
         .leftJoin(EntityWarehouse, eq(sq.entity_id, EntityWarehouse.id))
-        .leftJoin(EntityVariantWarehouse, eq(sq.entity_variant_id, EntityVariantWarehouse.id))
-        // Optional: Filter out zero quantities to keep the UI clean
-        .where(sql`${sq.net_quantity} != 0`);
+        .leftJoin(EntityVariantWarehouse, eq(sq.entity_variant_id, EntityVariantWarehouse.id));
+    // Optional: Filter out zero quantities to keep the UI clean
+    // .where(sql`${sq.net_quantity} != 0`);
 
-    return rows;
+    // Get the name of the destination
+    const destination = db.select({ name: Destination.name }).from(Destination).where(eq(Destination.id, dest));
+
+    return {
+        entities: rows,
+        destination: await destination.then((dest) => dest[0].name),
+    };
 }, 'all-entities-for-destination');
 
 export default function DestinationPage() {
     const params = useParams<{ id: string }>();
     const inventory = createAsync(() => loadEntitiesForDestination(params.id));
+    const navigate = useNavigate();
 
     return (
         <div class="w-full mx-auto px-4 py-12">
@@ -64,9 +71,15 @@ export default function DestinationPage() {
             <div class="mb-8 flex items-center justify-between">
                 <div>
                     <h1 class="text-3xl font-bold text-white tracking-tight">Inventory Status</h1>
-                    <p class="text-zinc-400 mt-2 text-sm">
+                    <p class="text-zinc-400 mt-2 text-base">
                         Current stock levels for Destination{' '}
-                        <span class="font-mono text-zinc-300">#{params.id.slice(0, 8)}</span>
+                        <Suspense
+                            fallback={
+                                <span class="w-20 bg-zinc-800/50 h-4 inline-block rounded-md align-middle animate-pulse"></span>
+                            }
+                        >
+                            <span class="font-mono text-zinc-300 underline">{inventory()?.destination}</span>
+                        </Suspense>
                     </p>
                 </div>
                 <div class="flex items-center gap-4">
@@ -98,10 +111,24 @@ export default function DestinationPage() {
                         </thead>
                         <tbody class="divide-y divide-zinc-800/50">
                             <Suspense fallback={<TableSkeleton />}>
-                                <Show when={inventory() && inventory()!.length > 0} fallback={<EmptyState />}>
-                                    <For each={inventory()}>
+                                <Show
+                                    when={inventory()?.entities && inventory()!.entities.length > 0}
+                                    fallback={<EmptyState />}
+                                >
+                                    <For each={inventory()?.entities}>
                                         {(item) => (
-                                            <tr class="group hover:bg-white/2 transition-colors duration-200">
+                                            <tr
+                                                class="group cursor-pointer hover:bg-white/2 transition-colors duration-200"
+                                                role="link"
+                                                tabindex={0}
+                                                onClick={() => navigate(`/items/${item.entity_id}`)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === 'Enter' || event.key === ' ') {
+                                                        event.preventDefault();
+                                                        navigate(`/items/${item.entity_id}`);
+                                                    }
+                                                }}
+                                            >
                                                 {/* Entity Name & ID Column */}
                                                 <td class="py-5 pl-8 pr-4">
                                                     <div class="flex flex-col">

@@ -1,0 +1,143 @@
+import { A, createAsync, query, useNavigate } from '@solidjs/router';
+import { asc } from 'drizzle-orm';
+import { For, Show, Suspense } from 'solid-js';
+import { db } from '~/drizzle/client';
+import { EntityWarehouse } from '~/drizzle/schema';
+
+const loadItems = query(async () => {
+    'use server';
+
+    return db
+        .select({
+            id: EntityWarehouse.id,
+            name: EntityWarehouse.name,
+            unit: EntityWarehouse.unit,
+            type: EntityWarehouse.type,
+        })
+        .from(EntityWarehouse)
+        .orderBy(asc(EntityWarehouse.name));
+}, 'items-list');
+
+export default function ItemsPage() {
+    const items = createAsync(() => loadItems());
+    const navigate = useNavigate();
+
+    return (
+        <div class="w-full mx-auto px-4 py-12">
+            <div class="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-white tracking-tight">Items</h1>
+                    <p class="text-zinc-400 mt-2 text-base">
+                        All items in the warehouse catalog.
+                        <Suspense
+                            fallback={<span class="ml-2 w-10 bg-zinc-800/50 h-4 inline-block rounded-md animate-pulse" />}
+                        >
+                            <span class="ml-2 text-zinc-500 text-sm">
+                                {items()?.length ? `${items()!.length} total` : ''}
+                            </span>
+                        </Suspense>
+                    </p>
+                </div>
+            </div>
+
+            <div class="bg-brand border border-zinc-800/50 rounded-2xl overflow-hidden shadow-2xl shadow-black">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-zinc-800">
+                                <th class="py-5 pl-8 pr-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                    Item
+                                </th>
+                                <th class="py-5 px-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                    Type
+                                </th>
+                                <th class="py-5 pl-4 pr-8 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                    Unit
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-800/50">
+                            <Suspense fallback={<TableSkeleton />}>
+                                <Show when={items()?.length} fallback={<EmptyState />}>
+                                    <For each={items()}>
+                                        {(item) => (
+                                            <tr
+                                                class="group cursor-pointer hover:bg-white/2 transition-colors duration-200"
+                                                role="link"
+                                                tabindex={0}
+                                                onClick={() => navigate(`/items/${item.id}`)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === 'Enter' || event.key === ' ') {
+                                                        event.preventDefault();
+                                                        navigate(`/items/${item.id}`);
+                                                    }
+                                                }}
+                                            >
+                                                <td class="py-5 pl-8 pr-4">
+                                                    <A
+                                                        class="text-sm font-medium text-white hover:text-zinc-200 transition-colors"
+                                                        href={`/items/${item.id}`}
+                                                    >
+                                                        {item.name}
+                                                    </A>
+                                                </td>
+                                                <td class="py-5 px-4 text-sm text-zinc-300">{item.type}</td>
+                                                <td class="py-5 pl-4 pr-8 text-right text-sm text-zinc-300">
+                                                    {item.unit}
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </For>
+                                </Show>
+                            </Suspense>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const EmptyState = () => (
+    <tr>
+        <td colspan={3} class="py-16 text-center">
+            <div class="flex flex-col items-center justify-center gap-3">
+                <div class="p-3 bg-zinc-900 rounded-full border border-zinc-800">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="w-6 h-6 text-zinc-500"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"
+                        />
+                    </svg>
+                </div>
+                <p class="text-zinc-500 text-sm font-medium">No items found</p>
+            </div>
+        </td>
+    </tr>
+);
+
+const TableSkeleton = () => (
+    <For each={Array.from({ length: 6 })}>
+        {() => (
+            <tr class="animate-pulse">
+                <td class="py-5 pl-8 pr-4">
+                    <div class="h-4 w-40 bg-zinc-800/50 rounded"></div>
+                </td>
+                <td class="py-5 px-4">
+                    <div class="h-4 w-20 bg-zinc-800/50 rounded"></div>
+                </td>
+                <td class="py-5 pl-4 pr-8 text-right">
+                    <div class="h-4 w-12 bg-zinc-800/50 rounded inline-block"></div>
+                </td>
+            </tr>
+        )}
+    </For>
+);
