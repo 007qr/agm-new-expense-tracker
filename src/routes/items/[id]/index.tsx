@@ -1,10 +1,11 @@
 import { createAsync, query, useNavigate, useParams } from '@solidjs/router';
-import { and, eq, or, sql } from 'drizzle-orm';
-import { For, Show, Suspense } from 'solid-js';
+import { and, asc, eq, or, sql } from 'drizzle-orm';
+import { createSignal, For, Show, Suspense } from 'solid-js';
 import { db } from '~/drizzle/client';
 import { Destination, EntityWarehouse, WarehouseTransaction } from '~/drizzle/schema';
+import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 
-const netBalanceForAllDestinations = query(async (itemId: string) => {
+const netBalanceForAllDestinations = query(async (itemId: string, limit: number, offset: number) => {
     'use server';
 
     const balances = await db
@@ -33,7 +34,14 @@ const netBalanceForAllDestinations = query(async (itemId: string) => {
             ),
         )
         .groupBy(Destination.id, Destination.name)
-        .orderBy(Destination.name);
+        .orderBy(asc(Destination.name))
+        .limit(limit)
+        .offset(offset);
+
+    const totalCount = await db
+        .select({ total: sql<number>`COUNT(*)`.as('total') })
+        .from(Destination)
+        .then((rows) => rows[0]?.total ?? 0);
 
     const item = await db
         .select({ name: EntityWarehouse.name, unit: EntityWarehouse.unit })
@@ -44,13 +52,19 @@ const netBalanceForAllDestinations = query(async (itemId: string) => {
     return {
         balances,
         item: item ?? { name: 'Unknown Item', unit: 'Units' },
+        totalCount,
     };
 }, 'net-entity-for-all-dest');
 
 export default function DestinationNetBalance() {
     const params = useParams<{ id: string }>();
-    const balances = createAsync(() => netBalanceForAllDestinations(params.id));
+    const [page, setPage] = createSignal(1);
+    const [pageSize, setPageSize] = createSignal(10);
+    const balances = createAsync(() =>
+        netBalanceForAllDestinations(params.id, pageSize(), (page() - 1) * pageSize()),
+    );
     const navigate = useNavigate();
+    const totalCount = () => balances()?.totalCount ?? 0;
 
     return (
         <div class="w-full mx-auto px-4 py-12">
@@ -132,6 +146,28 @@ export default function DestinationNetBalance() {
                         </tbody>
                     </table>
                 </div>
+                <Suspense
+                    fallback={
+                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                            <PaginationSkeleton />
+                        </div>
+                    }
+                >
+                    <Show when={totalCount() > 0}>
+                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                            <Pagination
+                                page={page()}
+                                pageSize={pageSize()}
+                                totalCount={totalCount()}
+                                onPageChange={setPage}
+                                onPageSizeChange={(size) => {
+                                    setPageSize(size);
+                                    setPage(1);
+                                }}
+                            />
+                        </div>
+                    </Show>
+                </Suspense>
             </div>
         </div>
     );

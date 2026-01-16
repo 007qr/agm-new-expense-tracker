@@ -1,13 +1,14 @@
 import { A, createAsync, query, useNavigate } from '@solidjs/router';
-import { asc } from 'drizzle-orm';
-import { For, Show, Suspense } from 'solid-js';
+import { asc, sql } from 'drizzle-orm';
+import { createSignal, For, Show, Suspense } from 'solid-js';
 import { db } from '~/drizzle/client';
 import { EntityWarehouse } from '~/drizzle/schema';
+import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 
-const loadItems = query(async () => {
+const loadItems = query(async (limit: number, offset: number) => {
     'use server';
 
-    return db
+    const items = await db
         .select({
             id: EntityWarehouse.id,
             name: EntityWarehouse.name,
@@ -15,12 +16,24 @@ const loadItems = query(async () => {
             type: EntityWarehouse.type,
         })
         .from(EntityWarehouse)
-        .orderBy(asc(EntityWarehouse.name));
+        .orderBy(asc(EntityWarehouse.name))
+        .limit(limit)
+        .offset(offset);
+
+    const totalCount = await db
+        .select({ total: sql<number>`COUNT(*)`.as('total') })
+        .from(EntityWarehouse)
+        .then((rows) => rows[0]?.total ?? 0);
+
+    return { items, totalCount };
 }, 'items-list');
 
 export default function ItemsPage() {
-    const items = createAsync(() => loadItems());
+    const [page, setPage] = createSignal(1);
+    const [pageSize, setPageSize] = createSignal(10);
+    const items = createAsync(() => loadItems(pageSize(), (page() - 1) * pageSize()));
     const navigate = useNavigate();
+    const totalCount = () => items()?.totalCount ?? 0;
 
     return (
         <div class="w-full mx-auto px-4 py-12">
@@ -33,11 +46,14 @@ export default function ItemsPage() {
                             fallback={<span class="ml-2 w-10 bg-zinc-800/50 h-4 inline-block rounded-md animate-pulse" />}
                         >
                             <span class="ml-2 text-zinc-500 text-sm">
-                                {items()?.length ? `${items()!.length} total` : ''}
+                                {items()?.items ? `${items()!.totalCount} total` : ''}
                             </span>
                         </Suspense>
                     </p>
                 </div>
+                <A href="/items/new" class="bg-secondary px-4 py-2 rounded-md">
+                    Add New Item
+                </A>
             </div>
 
             <div class="bg-brand border border-zinc-800/50 rounded-2xl overflow-hidden shadow-2xl shadow-black">
@@ -58,8 +74,8 @@ export default function ItemsPage() {
                         </thead>
                         <tbody class="divide-y divide-zinc-800/50">
                             <Suspense fallback={<TableSkeleton />}>
-                                <Show when={items()?.length} fallback={<EmptyState />}>
-                                    <For each={items()}>
+                                <Show when={items()?.items?.length} fallback={<EmptyState />}>
+                                    <For each={items()?.items}>
                                         {(item) => (
                                             <tr
                                                 class="group cursor-pointer hover:bg-white/2 transition-colors duration-200"
@@ -93,6 +109,28 @@ export default function ItemsPage() {
                         </tbody>
                     </table>
                 </div>
+                <Suspense
+                    fallback={
+                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                            <PaginationSkeleton />
+                        </div>
+                    }
+                >
+                    <Show when={totalCount() > 0}>
+                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                            <Pagination
+                                page={page()}
+                                pageSize={pageSize()}
+                                totalCount={totalCount()}
+                                onPageChange={setPage}
+                                onPageSizeChange={(size) => {
+                                    setPageSize(size);
+                                    setPage(1);
+                                }}
+                            />
+                        </div>
+                    </Show>
+                </Suspense>
             </div>
         </div>
     );

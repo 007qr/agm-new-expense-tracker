@@ -1,11 +1,12 @@
 import { createAsync, query, useParams } from '@solidjs/router';
 import { desc, eq, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { For, Show, Suspense } from 'solid-js';
+import { createEffect, createSignal, For, Show, Suspense } from 'solid-js';
 import { db } from '~/drizzle/client';
 import { Destination, EntityVariantWarehouse, EntityWarehouse, WarehouseTransaction } from '~/drizzle/schema';
+import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 
-export const loadTransactions = query(async (dest: string) => {
+export const loadTransactions = query(async (dest: string, limit: number, offset: number) => {
     'use server';
 
     const variantDetails = sql<string>`
@@ -36,19 +37,41 @@ export const loadTransactions = query(async (dest: string) => {
         .leftJoin(sourceDestination, eq(WarehouseTransaction.source_id, sourceDestination.id))
         .leftJoin(targetDestination, eq(WarehouseTransaction.destination_id, targetDestination.id))
         .where(or(eq(WarehouseTransaction.destination_id, dest), eq(WarehouseTransaction.source_id, dest)))
-        .orderBy(desc(WarehouseTransaction.created_at));
+        .orderBy(desc(WarehouseTransaction.created_at))
+        .limit(limit)
+        .offset(offset);
+
+    const totalCount = await db
+        .select({ total: sql<number>`COUNT(*)`.as('total') })
+        .from(WarehouseTransaction)
+        .where(or(eq(WarehouseTransaction.destination_id, dest), eq(WarehouseTransaction.source_id, dest)))
+        .then((rows) => rows[0]?.total ?? 0);
 
     const destination = db.select({ name: Destination.name }).from(Destination).where(eq(Destination.id, dest));
 
     return {
         transactions,
         destination: await destination.then((rows) => rows[0]?.name ?? 'Unknown'),
+        totalCount,
     };
 }, 'transactions-by-destination-id');
 
 export default function LedgerPage() {
     const params = useParams<{ id: string }>();
-    const transactions = createAsync(() => loadTransactions(params.id));
+    const [page, setPage] = createSignal(1);
+    const [pageSize, setPageSize] = createSignal(10);
+    const transactions = createAsync(() =>
+        loadTransactions(params.id, pageSize(), (page() - 1) * pageSize()),
+    );
+    const totalCount = () => transactions()?.totalCount ?? 0;
+
+    createEffect(() => {
+        const totalPages = Math.max(1, Math.ceil(totalCount() / pageSize()));
+        if (page() > totalPages) {
+            setPage(totalPages);
+        }
+    });
+
     return (
         <div class="w-full mx-auto px-4 py-12">
             <div class="mb-8 flex items-center justify-between">
@@ -168,6 +191,28 @@ export default function LedgerPage() {
                         </tbody>
                     </table>
                 </div>
+                <Suspense
+                    fallback={
+                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                            <PaginationSkeleton />
+                        </div>
+                    }
+                >
+                    <Show when={totalCount() > 0}>
+                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                            <Pagination
+                                page={page()}
+                                pageSize={pageSize()}
+                                totalCount={totalCount()}
+                                onPageChange={setPage}
+                                onPageSizeChange={(size) => {
+                                    setPageSize(size);
+                                    setPage(1);
+                                }}
+                            />
+                        </div>
+                    </Show>
+                </Suspense>
             </div>
         </div>
     );
