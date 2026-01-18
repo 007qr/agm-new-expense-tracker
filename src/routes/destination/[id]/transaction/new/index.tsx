@@ -181,9 +181,28 @@ function TransactionFormContent() {
                                     Default / No Variant
                                 </option>
                                 <For each={availableVariants()}>
-                                    {(v) => (
-                                        <option value={v.id}>{v.length ? `${v.length}x${v.width}` : 'Standard'}</option>
-                                    )}
+                                    {(v) => {
+                                        const formatNumber = (value: string | null) => {
+                                            if (!value) return null;
+                                            const num = Number.parseFloat(value);
+                                            if (!Number.isFinite(num)) return value;
+                                            return num.toFixed(3).replace(/\.?0+$/, '');
+                                        };
+
+                                        const dimensionParts = [v.length, v.width, v.height]
+                                            .map(formatNumber)
+                                            .filter((part) => part);
+                                        const dimensionLabel = dimensionParts.length
+                                            ? `${dimensionParts.join('x')} ${v.dimension_unit ?? ''}`.trim()
+                                            : '';
+                                        const thicknessValue = formatNumber(v.thickness);
+                                        const thicknessLabel = thicknessValue
+                                            ? `Thickness: ${thicknessValue} ${v.thickness_unit ?? ''}`.trim()
+                                            : '';
+                                        const label = [dimensionLabel, thicknessLabel].filter(Boolean).join(' · ');
+
+                                        return <option value={v.id}>{label || 'Standard'}</option>;
+                                    }}
                                 </For>
                             </SelectInput>
                         </div>

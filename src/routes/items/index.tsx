@@ -1,8 +1,8 @@
-import { A, createAsync, query, useNavigate } from '@solidjs/router';
-import { asc, sql } from 'drizzle-orm';
+import { A, action, createAsync, query, redirect, useNavigate, useSubmission } from '@solidjs/router';
+import { asc, eq, sql } from 'drizzle-orm';
 import { createSignal, For, Show, Suspense } from 'solid-js';
 import { db } from '~/drizzle/client';
-import { EntityWarehouse } from '~/drizzle/schema';
+import { EntityVariantWarehouse, EntityWarehouse } from '~/drizzle/schema';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 
 const loadItems = query(async (limit: number, offset: number) => {
@@ -28,6 +28,11 @@ const loadItems = query(async (limit: number, offset: number) => {
     return { items, totalCount };
 }, 'items-list');
 
+type ActionResponse = {
+    success: boolean;
+    error?: string;
+};
+
 export default function ItemsPage() {
     const [page, setPage] = createSignal(1);
     const [pageSize, setPageSize] = createSignal(10);
@@ -43,7 +48,9 @@ export default function ItemsPage() {
                     <p class="text-zinc-400 mt-2 text-base">
                         All items in the warehouse catalog.
                         <Suspense
-                            fallback={<span class="ml-2 w-10 bg-zinc-800/50 h-4 inline-block rounded-md animate-pulse" />}
+                            fallback={
+                                <span class="ml-2 w-10 bg-zinc-800/50 h-4 inline-block rounded-md animate-pulse" />
+                            }
                         >
                             <span class="ml-2 text-zinc-500 text-sm">
                                 {items()?.items ? `${items()!.totalCount} total` : ''}
@@ -69,6 +76,9 @@ export default function ItemsPage() {
                                 </th>
                                 <th class="py-5 pl-4 pr-8 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">
                                     Unit
+                                </th>
+                                <th class="py-5 pr-8 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                    Actions
                                 </th>
                             </tr>
                         </thead>
@@ -100,6 +110,19 @@ export default function ItemsPage() {
                                                 <td class="py-5 px-4 text-sm text-zinc-300">{item.type}</td>
                                                 <td class="py-5 pl-4 pr-8 text-right text-sm text-zinc-300">
                                                     {item.unit}
+                                                </td>
+                                                <td class="py-5 pr-8 text-right">
+                                                    <div
+                                                        class="inline-flex items-center gap-2"
+                                                        onClick={(event) => event.stopPropagation()}
+                                                    >
+                                                        <A
+                                                            href={`/items/${item.id}/edit`}
+                                                            class="text-xs font-semibold text-zinc-300 hover:text-white border border-zinc-800 rounded-lg px-3 py-1.5 transition-colors"
+                                                        >
+                                                            Edit
+                                                        </A>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )}
@@ -138,7 +161,7 @@ export default function ItemsPage() {
 
 const EmptyState = () => (
     <tr>
-        <td colspan={3} class="py-16 text-center">
+        <td colspan={4} class="py-16 text-center">
             <div class="flex flex-col items-center justify-center gap-3">
                 <div class="p-3 bg-zinc-900 rounded-full border border-zinc-800">
                     <svg
@@ -174,6 +197,9 @@ const TableSkeleton = () => (
                 </td>
                 <td class="py-5 pl-4 pr-8 text-right">
                     <div class="h-4 w-12 bg-zinc-800/50 rounded inline-block"></div>
+                </td>
+                <td class="py-5 pr-8 text-right">
+                    <div class="h-4 w-20 bg-zinc-800/50 rounded inline-block"></div>
                 </td>
             </tr>
         )}
