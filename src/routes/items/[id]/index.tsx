@@ -60,9 +60,7 @@ export default function DestinationNetBalance() {
     const params = useParams<{ id: string }>();
     const [page, setPage] = createSignal(1);
     const [pageSize, setPageSize] = createSignal(10);
-    const balances = createAsync(() =>
-        netBalanceForAllDestinations(params.id, pageSize(), (page() - 1) * pageSize()),
-    );
+    const balances = createAsync(() => netBalanceForAllDestinations(params.id, pageSize(), (page() - 1) * pageSize()));
     const navigate = useNavigate();
     const totalCount = () => balances()?.totalCount ?? 0;
 
@@ -70,25 +68,25 @@ export default function DestinationNetBalance() {
         <div class="w-full mx-auto px-4 py-12">
             <div class="mb-8 flex items-center justify-between">
                 <div>
-                    <h1 class="text-3xl font-bold text-white tracking-tight">Destination Net Balance</h1>
-                    <p class="text-zinc-400 mt-2 text-base">
+                    <h1 class="text-3xl font-bold text-black tracking-tight">Destination Net Balance</h1>
+                    <p class="text-zinc-600 mt-2 text-base">
                         Net quantity for{' '}
                         <Suspense
                             fallback={
-                                <span class="w-20 bg-zinc-800/50 h-4 inline-block rounded-md align-middle animate-pulse"></span>
+                                <span class="w-20 bg-zinc-200 h-4 inline-block rounded-md align-middle animate-pulse"></span>
                             }
                         >
-                            <span class="font-mono text-zinc-300 underline">{balances()?.item.name}</span>
+                            <span class="font-mono text-zinc-700 underline">{balances()?.item.name}</span>
                         </Suspense>
                     </p>
                 </div>
             </div>
 
-            <div class="bg-brand border border-zinc-800/50 rounded-2xl overflow-hidden shadow-2xl shadow-black">
+            <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xl shadow-black/5">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
-                            <tr class="border-b border-zinc-800">
+                            <tr class="border-b border-zinc-200">
                                 <th class="py-5 pl-8 pr-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
                                     Destination
                                 </th>
@@ -97,7 +95,7 @@ export default function DestinationNetBalance() {
                                 </th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-zinc-800/50">
+                        <tbody class="divide-y divide-zinc-200">
                             <Suspense fallback={<TableSkeleton />}>
                                 <Show
                                     when={balances()?.balances && balances()!.balances.length > 0}
@@ -112,7 +110,7 @@ export default function DestinationNetBalance() {
 
                                             return (
                                                 <tr
-                                                    class="group cursor-pointer hover:bg-white/2 transition-colors duration-200"
+                                                    class="group cursor-pointer hover:bg-zinc-50 transition-colors duration-200"
                                                     role="link"
                                                     tabindex={0}
                                                     onClick={() => navigate(`/destination/${row.destination_id}`)}
@@ -123,15 +121,15 @@ export default function DestinationNetBalance() {
                                                         }
                                                     }}
                                                 >
-                                                    <td class="py-5 pl-8 pr-4 text-sm text-white">
+                                                    <td class="py-5 pl-8 pr-4 text-sm text-black">
                                                         {row.destination_name}
                                                     </td>
                                                     <td class="py-5 pl-4 pr-8 text-right">
                                                         <span
                                                             class={`text-sm font-medium ${
                                                                 (row.net_quantity ?? 0) < 0
-                                                                    ? 'text-red-400'
-                                                                    : 'text-white'
+                                                                    ? 'text-red-500'
+                                                                    : 'text-black'
                                                             }`}
                                                         >
                                                             {quantity()}
@@ -148,13 +146,13 @@ export default function DestinationNetBalance() {
                 </div>
                 <Suspense
                     fallback={
-                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                        <div class="border-t border-zinc-200 px-6 py-4">
                             <PaginationSkeleton />
                         </div>
                     }
                 >
                     <Show when={totalCount() > 0}>
-                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                        <div class="border-t border-zinc-200 px-6 py-4">
                             <Pagination
                                 page={page()}
                                 pageSize={pageSize()}
@@ -177,7 +175,7 @@ const EmptyState = () => (
     <tr>
         <td colspan={2} class="py-16 text-center">
             <div class="flex flex-col items-center justify-center gap-3">
-                <div class="p-3 bg-zinc-900 rounded-full border border-zinc-800">
+                <div class="p-3 bg-zinc-100 rounded-full border border-zinc-200">
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
@@ -204,10 +202,10 @@ const TableSkeleton = () => (
         {() => (
             <tr class="animate-pulse">
                 <td class="py-5 pl-8 pr-4">
-                    <div class="h-4 w-40 bg-zinc-800/50 rounded"></div>
+                    <div class="h-4 w-40 bg-zinc-200 rounded"></div>
                 </td>
                 <td class="py-5 pl-4 pr-8 text-right">
-                    <div class="h-4 w-16 bg-zinc-800/50 rounded inline-block"></div>
+                    <div class="h-4 w-16 bg-zinc-200 rounded inline-block"></div>
                 </td>
             </tr>
         )}

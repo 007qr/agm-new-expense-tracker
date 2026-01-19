@@ -78,39 +78,51 @@ export default function DestinationPage() {
     const navigate = useNavigate();
     const totalCount = () => inventory()?.totalCount ?? 0;
 
+    const formatVariantLabel = (value?: string | null) => {
+        if (!value) return 'NA';
+        return value.replace(/\d+(?:\.\d+)?/g, (match) => {
+            const num = Number.parseFloat(match);
+            if (!Number.isFinite(num)) return match;
+            return num.toFixed(3).replace(/\.?0+$/, '');
+        });
+    };
+
     return (
         <div class="w-full mx-auto px-4 py-12">
             {/* Header Section */}
             <div class="mb-8 flex items-center justify-between">
                 <div>
-                    <h1 class="text-3xl font-bold text-white tracking-tight">Inventory Status</h1>
-                    <p class="text-zinc-400 mt-2 text-base">
+                    <h1 class="text-3xl font-bold text-black tracking-tight">Inventory Status</h1>
+                    <p class="text-zinc-600 mt-2 text-base">
                         Current stock levels for Destination{' '}
                         <Suspense
                             fallback={
-                                <span class="w-20 bg-zinc-800/50 h-4 inline-block rounded-md align-middle animate-pulse"></span>
+                                <span class="w-20 bg-zinc-200 h-4 inline-block rounded-md align-middle animate-pulse"></span>
                             }
                         >
-                            <span class="font-mono text-zinc-300 underline">{inventory()?.destination}</span>
+                            <span class="font-mono text-zinc-700 underline">{inventory()?.destination}</span>
                         </Suspense>
                     </p>
                 </div>
                 <div class="flex items-center gap-4">
-                    <A class="bg-secondary py-2.5 px-2 rounded-lg" href={`ledger`}>
+                    <A class="bg-secondary text-brand py-2.5 px-2 rounded-lg" href={`ledger`}>
                         Open Ledger
                     </A>
-                    <A class="bg-secondary py-2.5 px-2 rounded-lg" href={`/destination/${params.id}/transaction/new`}>
+                    <A
+                        class="bg-secondary text-brand py-2.5 px-2 rounded-lg"
+                        href={`/destination/${params.id}/transaction/new`}
+                    >
                         New Transaction
                     </A>
                 </div>
             </div>
 
             {/* Main Surface Card */}
-            <div class="bg-brand border border-zinc-800/50 rounded-2xl overflow-hidden shadow-2xl shadow-black">
+            <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xl shadow-black/5">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
-                            <tr class="border-b border-zinc-800">
+                            <tr class="border-b border-zinc-200">
                                 <th class="py-5 pl-8 pr-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
                                     Item
                                 </th>
@@ -122,27 +134,21 @@ export default function DestinationPage() {
                                 </th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-zinc-800/50">
+                        <tbody class="divide-y divide-zinc-200">
                             <Suspense fallback={<TableSkeleton />}>
                                 <Show when={totalCount() > 0} fallback={<EmptyState />}>
                                     <For each={inventory()?.entities}>
                                         {(item) => (
                                             <tr
-                                                class="group cursor-pointer hover:bg-white/2 transition-colors duration-200"
+                                                class="group cursor-pointer hover:bg-zinc-50 transition-colors duration-200"
                                                 role="link"
                                                 tabindex={0}
-                                                onClick={() => navigate(`/items/${item.entity_id}`)}
-                                                onKeyDown={(event) => {
-                                                    if (event.key === 'Enter' || event.key === ' ') {
-                                                        event.preventDefault();
-                                                        navigate(`/items/${item.entity_id}`);
-                                                    }
-                                                }}
+                                                onClick={() => navigate(`ledger?entity=${item.entity_id}`)}
                                             >
                                                 {/* Entity Name & ID Column */}
                                                 <td class="py-5 pl-8 pr-4">
                                                     <div class="flex flex-col">
-                                                        <span class="font-medium text-white text-sm">
+                                                        <span class="font-medium text-black text-sm">
                                                             {item.entity_name}
                                                         </span>
                                                     </div>
@@ -152,8 +158,8 @@ export default function DestinationPage() {
                                                 <td class="py-5 px-4">
                                                     <div class="flex flex-col">
                                                         {/* Show formatted string if it exists, else fallback */}
-                                                        <span class="text-sm text-zinc-300">
-                                                            {item.variant_formatted ?? 'NA'}
+                                                        <span class="text-sm text-zinc-700">
+                                                            {formatVariantLabel(item.variant_formatted)}
                                                         </span>
                                                     </div>
                                                 </td>
@@ -162,7 +168,7 @@ export default function DestinationPage() {
                                                 <td class="py-5 pl-4 pr-8 text-right">
                                                     <span
                                                         class={`text-sm font-medium ${
-                                                            (item.net_quantity ?? 0) < 0 ? 'text-red-400' : 'text-white'
+                                                            (item.net_quantity ?? 0) < 0 ? 'text-red-500' : 'text-black'
                                                         }`}
                                                     >
                                                         {item.net_quantity?.toLocaleString() ?? 0}
@@ -178,13 +184,13 @@ export default function DestinationPage() {
                 </div>
                 <Suspense
                     fallback={
-                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                        <div class="border-t border-zinc-200 px-6 py-4">
                             <PaginationSkeleton />
                         </div>
                     }
                 >
                     <Show when={totalCount() > 0}>
-                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                        <div class="border-t border-zinc-200 px-6 py-4">
                             <Pagination
                                 page={page()}
                                 pageSize={pageSize()}

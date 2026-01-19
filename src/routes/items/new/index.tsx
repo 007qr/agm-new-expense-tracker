@@ -112,7 +112,7 @@ export const createItem = action(async (formData: FormData): Promise<ActionRespo
             );
         }
 
-        throw redirect(`/items/${item.id}`);
+        throw redirect(`/items`);
     } catch (error: unknown) {
         if (error instanceof Response) throw error;
         if (typeof error === 'object' && error !== null && 'code' in error) {
@@ -144,15 +144,15 @@ export default function CreateItemPage() {
 
     // Shared styles for the variant inputs to ensure consistency
     const variantInputClass =
-        'w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 outline-none transition-colors placeholder:text-zinc-700 hover:border-zinc-600 focus:border-zinc-500 focus:ring-1 focus:ring-white/10';
+        'w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-800 outline-none transition-colors placeholder:text-zinc-400 hover:border-zinc-300 focus:border-black/40 focus:ring-1 focus:ring-black/10';
 
-    const variantLabelClass = 'text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-1.5 block';
+    const variantLabelClass = 'text-[10px] uppercase tracking-wider text-zinc-600 font-bold mb-1.5 block';
 
     return (
         <div class="w-full flex items-center justify-center p-6 bg-brand min-h-screen">
             <div class="w-full max-w-3xl animate-in fade-in zoom-in-95 duration-500">
                 <div class="mb-8">
-                    <h1 class="text-xl font-medium text-white tracking-tight">New Item</h1>
+                    <h1 class="text-xl font-medium text-black tracking-tight">New Item</h1>
                     <p class="text-zinc-500 text-sm mt-1">Create an item and define its variants.</p>
                 </div>
 
@@ -160,10 +160,10 @@ export default function CreateItemPage() {
                     <div class="flex-1 space-y-8">
                         {/* Main Item Details */}
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="group relative bg-zinc-900/40 border border-zinc-800 focus-within:border-zinc-500 focus-within:ring-1 focus-within:ring-zinc-500 rounded-xl transition-all duration-200">
+                            <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
                                 <label
                                     for="name"
-                                    class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500 select-none group-focus-within:text-zinc-400 transition-colors"
+                                    class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-600 select-none group-focus-within:text-zinc-800 transition-colors"
                                 >
                                     Item Name
                                 </label>
@@ -173,14 +173,14 @@ export default function CreateItemPage() {
                                     type="text"
                                     required
                                     placeholder="e.g. Steel Rod"
-                                    class="w-full bg-transparent text-white text-sm px-3.5 pt-7 pb-2.5 outline-none placeholder:text-zinc-700 transition-colors"
+                                    class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none placeholder:text-zinc-400 transition-colors"
                                 />
                             </div>
 
-                            <div class="group relative bg-zinc-900/40 border border-zinc-800 focus-within:border-zinc-500 focus-within:ring-1 focus-within:ring-zinc-500 rounded-xl transition-all duration-200">
+                            <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
                                 <label
                                     for="unit"
-                                    class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500 select-none group-focus-within:text-zinc-400 transition-colors"
+                                    class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-600 select-none group-focus-within:text-zinc-800 transition-colors"
                                 >
                                     Unit
                                 </label>
@@ -188,7 +188,7 @@ export default function CreateItemPage() {
                                     id="unit"
                                     name="unit"
                                     required
-                                    class="w-full bg-transparent text-white text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer [&>option]:bg-brand [&>option]:text-white"
+                                    class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer [&>option]:bg-white [&>option]:text-black"
                                 >
                                     <option value="" disabled selected>
                                         Select unit...
@@ -204,10 +204,10 @@ export default function CreateItemPage() {
                             </div>
                         </div>
 
-                        <div class="group relative bg-zinc-900/40 border border-zinc-800 focus-within:border-zinc-500 focus-within:ring-1 focus-within:ring-zinc-500 rounded-xl transition-all duration-200">
+                        <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
                             <label
                                 for="type"
-                                class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500 select-none group-focus-within:text-zinc-400 transition-colors"
+                                class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-600 select-none group-focus-within:text-zinc-800 transition-colors"
                             >
                                 Type
                             </label>
@@ -215,7 +215,7 @@ export default function CreateItemPage() {
                                 id="type"
                                 name="type"
                                 required
-                                class="w-full bg-transparent text-white text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer [&>option]:bg-brand [&>option]:text-white"
+                                class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer [&>option]:bg-white [&>option]:text-black"
                             >
                                 <option value="" disabled selected>
                                     Select a type...
@@ -230,17 +230,17 @@ export default function CreateItemPage() {
 
                         {/* Variants Section */}
                         <div class="space-y-5">
-                            <div class="flex items-end justify-between border-b border-zinc-800/50 pb-4">
+                            <div class="flex items-end justify-between border-b border-zinc-200 pb-4">
                                 <div>
-                                    <h2 class="text-sm font-semibold text-zinc-200">Variants</h2>
-                                    <p class="text-xs text-zinc-500 mt-0.5">
+                                    <h2 class="text-sm font-semibold text-black">Size</h2>
+                                    <p class="text-xs text-zinc-600 mt-0.5">
                                         Define dimensions or thickness for this item.
                                     </p>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={addVariant}
-                                    class="bg-zinc-100 hover:bg-white text-black text-xs font-semibold rounded-lg px-4 py-2 transition-colors active:scale-95"
+                                    class="bg-secondary text-brand hover:bg-black/90 text-xs font-semibold rounded-lg px-4 py-2 transition-colors active:scale-95"
                                 >
                                     + Add Variant
                                 </button>
@@ -249,7 +249,7 @@ export default function CreateItemPage() {
                             <Show
                                 when={variants().length > 0}
                                 fallback={
-                                    <div class="flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-xl p-8 text-center bg-zinc-900/20">
+                                    <div class="flex flex-col items-center justify-center border border-dashed border-zinc-200 rounded-xl p-8 text-center bg-zinc-50">
                                         <p class="text-sm text-zinc-500">No variants added yet.</p>
                                     </div>
                                 }
@@ -257,21 +257,21 @@ export default function CreateItemPage() {
                                 <div class="grid grid-cols-1 gap-4">
                                     <Index each={variants()}>
                                         {(variant, index) => (
-                                            <div class="relative bg-zinc-900/40 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 transition-colors">
+                                            <div class="relative bg-white border border-zinc-200 rounded-xl p-5 hover:border-zinc-300 transition-colors">
                                                 {/* Header */}
                                                 <div class="flex items-center justify-between mb-4">
                                                     <div class="flex items-center gap-2">
-                                                <span class="flex items-center justify-center w-5 h-5 rounded bg-zinc-800 text-[10px] font-bold text-zinc-400">
-                                                    {index + 1}
-                                                </span>
-                                                        <span class="text-xs font-medium text-zinc-400">
+                                                        <span class="flex items-center justify-center w-5 h-5 rounded bg-black text-[10px] font-bold text-white">
+                                                            {index + 1}
+                                                        </span>
+                                                        <span class="text-xs font-medium text-zinc-600">
                                                             Variant Dimensions
                                                         </span>
                                                     </div>
                                                     <button
                                                         type="button"
-                                                    onClick={() => removeVariant(index)}
-                                                        class="text-zinc-500 hover:text-red-400 transition-colors p-1"
+                                                        onClick={() => removeVariant(index)}
+                                                        class="text-zinc-600 hover:text-red-500 transition-colors p-1"
                                                         title="Remove variant"
                                                     >
                                                         <svg
@@ -346,7 +346,7 @@ export default function CreateItemPage() {
                                                                     e.currentTarget.value,
                                                                 )
                                                             }
-                                                            class={`${variantInputClass} appearance-none cursor-pointer [&>option]:bg-brand [&>option]:text-white`}
+                                                            class={`${variantInputClass} appearance-none cursor-pointer [&>option]:bg-white [&>option]:text-black`}
                                                         >
                                                             <option value="" disabled selected>
                                                                 -
@@ -385,7 +385,7 @@ export default function CreateItemPage() {
                                                                     e.currentTarget.value,
                                                                 )
                                                             }
-                                                            class={`${variantInputClass} appearance-none cursor-pointer [&>option]:bg-brand [&>option]:text-white`}
+                                                            class={`${variantInputClass} appearance-none cursor-pointer [&>option]:bg-white [&>option]:text-black`}
                                                         >
                                                             <option value="" disabled selected>
                                                                 -
@@ -419,7 +419,7 @@ export default function CreateItemPage() {
                         <button
                             type="submit"
                             disabled={submission.pending}
-                            class="w-full bg-white hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed text-black font-semibold text-sm rounded-xl py-3.5 transition-all active:scale-[0.99] shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+                            class="w-full bg-secondary hover:bg-black/90 disabled:opacity-50 disabled:cursor-not-allowed text-brand font-semibold text-sm rounded-xl py-3.5 transition-all active:scale-[0.99]"
                         >
                             {submission.pending ? 'Creating...' : 'Create Item'}
                         </button>

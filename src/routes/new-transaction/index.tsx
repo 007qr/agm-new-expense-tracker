@@ -1,23 +1,19 @@
-import { createSignal, createMemo, Show, For, Suspense } from 'solid-js';
+import { createMemo, createSignal, For, Show, Suspense } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { query, action, redirect, createAsync, useSubmission, useParams } from '@solidjs/router';
-import { db } from '~/drizzle/client'; // Adjust path if needed
+import { action, createAsync, query, redirect, useSubmission } from '@solidjs/router';
+import { db } from '~/drizzle/client';
 import {
-    WarehouseTransaction,
-    EntityWarehouse,
-    EntityVariantWarehouse,
     Destination,
+    EntityVariantWarehouse,
+    EntityWarehouse,
     TransactionType as TransactionTypeValues,
-} from '~/drizzle/schema'; // Adjust path if needed
+    WarehouseTransaction,
+} from '~/drizzle/schema';
 
 type WarehouseTransactionType = (typeof TransactionTypeValues)[number];
 
 const isTransactionType = (value: string): value is WarehouseTransactionType =>
     TransactionTypeValues.includes(value as WarehouseTransactionType);
-
-// ==========================================
-// 1. SERVER ACTIONS & LOADERS
-// ==========================================
 
 export const loadTransactionFormData = query(async () => {
     'use server';
@@ -45,20 +41,13 @@ export const createTransaction = action(async (formData: FormData) => {
     const sourceId = getStringField('source_id');
     const destId = getStringField('destination_id');
     const quantity = Number.parseFloat(getStringField('quantity'));
-    const rawTransactionType = getStringField('transaction_type');
 
-    // Validation
-    if (!entityId || !sourceId || !destId || !rawTransactionType) {
+    if (!entityId || !sourceId || !destId) {
         return { success: false, error: 'Please fill in all required fields.' };
-    }
-    if (!isTransactionType(rawTransactionType)) {
-        return { success: false, error: 'Invalid transaction type.' };
     }
     if (!Number.isFinite(quantity) || quantity <= 0) {
         return { success: false, error: 'Quantity must be a positive number.' };
     }
-
-    const transactionType = rawTransactionType;
 
     try {
         await db.insert(WarehouseTransaction).values({
@@ -67,7 +56,7 @@ export const createTransaction = action(async (formData: FormData) => {
             source_id: sourceId,
             destination_id: destId,
             quantity: String(quantity),
-            type: transactionType,
+            type: 'debit',
         });
 
         throw redirect(`/destination/${sourceId}`);
@@ -78,9 +67,6 @@ export const createTransaction = action(async (formData: FormData) => {
     }
 });
 
-// ==========================================
-// 2. MAIN PAGE CONTAINER
-// ==========================================
 export default function NewTransactionPage() {
     return (
         <div class="w-full flex items-center justify-center p-6 bg-brand min-h-[85vh] font-sans text-black">
@@ -94,7 +80,6 @@ export default function NewTransactionPage() {
 }
 
 function TransactionFormContent() {
-    const params = useParams<{ id?: string }>();
     const data = createAsync(() => loadTransactionFormData());
     const submission = useSubmission(createTransaction);
     const entities = () => data()?.entities || [];
@@ -102,21 +87,14 @@ function TransactionFormContent() {
     const destinations = () => data()?.destinations || [];
 
     const [selectedEntityId, setSelectedEntityId] = createSignal<string>('');
-    const [transactionType, setTransactionType] = createSignal<WarehouseTransactionType>('credit');
-
     const availableVariants = createMemo(() => variants().filter((v) => v.entity_id === selectedEntityId()));
     const selectedUnit = createMemo(() => entities().find((e) => e.id === selectedEntityId())?.unit || 'Units');
-    const destinationName = createMemo(() => {
-        const destinationId = params.id;
-        return destinations().find((dest) => dest.id === destinationId)?.name || 'Destination';
-    });
 
     return (
         <div class="space-y-8">
-            {/* Header */}
             <div class="mb-10">
-                <h1 class="text-2xl font-semibold text-black">Record for {destinationName()}</h1>
-                <p class="text-zinc-600 text-sm mt-1">Transfer stock between warehouses or endpoints.</p>
+                <h1 class="text-2xl font-semibold text-black">New Transaction</h1>
+                <p class="text-zinc-600 text-sm mt-1">Debit-only flow between source and destination.</p>
             </div>
 
             <form
@@ -124,43 +102,32 @@ function TransactionFormContent() {
                 method="post"
                 class="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500"
             >
-                {/* HIDDEN INPUTS for Params & Type */}
-                <input type="hidden" name="source_id" value={params.id ?? ''} />
-                <input type="hidden" name="transaction_type" value={transactionType()} />
+                <div class="space-y-5">
+                    <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-4">Route</h2>
+                    <div class="gap-4 flex flex-col">
+                        <SelectInput name="source_id" label="Source" required>
+                            <option value="" disabled selected>
+                                Select a source...
+                            </option>
+                            <For each={destinations()}>{(dest) => <option value={dest.id}>{dest.name}</option>}</For>
+                        </SelectInput>
+                        <SelectInput name="destination_id" label="Destination" required>
+                            <option value="" disabled selected>
+                                Select a destination...
+                            </option>
+                            <For each={destinations()}>{(dest) => <option value={dest.id}>{dest.name}</option>}</For>
+                        </SelectInput>
+                    </div>
+                </div>
 
-                {/* --- SECTION 1: TYPE & ITEM --- */}
+                <div class="w-full h-px bg-zinc-200 border-t border-dashed border-zinc-200" />
+
                 <div class="space-y-5">
                     <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-4">
                         Transaction Details
                     </h2>
 
-                    {/* Credit / Debit Toggles */}
-                    <div class="grid grid-cols-2 gap-2 p-1 bg-white border border-zinc-200 rounded-xl">
-                        <button
-                            type="button"
-                            onClick={() => setTransactionType('credit')}
-                            class={`py-3 text-sm font-bold rounded-lg transition-all duration-200 ${
-                                transactionType() === 'credit'
-                                    ? 'bg-black text-white shadow-lg'
-                                    : 'text-zinc-500 hover:text-black hover:bg-zinc-100'
-                            }`}
-                        >
-                            Inward (Recevied)
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setTransactionType('debit')}
-                            class={`py-3 text-sm font-bold rounded-lg transition-all duration-200 ${
-                                transactionType() === 'debit'
-                                    ? 'bg-black text-white shadow-lg'
-                                    : 'text-zinc-500 hover:text-black hover:bg-zinc-100'
-                            }`}
-                        >
-                            Outward (Sent)
-                        </button>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="flex flex-col gap-4">
                         <SelectInput
                             name="entity_id"
                             label="Item / Entity"
@@ -209,24 +176,6 @@ function TransactionFormContent() {
                     </div>
                 </div>
 
-                <div class="w-full h-px bg-zinc-200 border-t border-dashed border-zinc-200" />
-
-                {/* --- SECTION 2: LOGISTICS --- */}
-                <div class="space-y-5">
-                    {/* Just Destination Select */}
-                    <SelectInput
-                        name="destination_id"
-                        label={`${transactionType() === 'credit' ? 'Recevied From' : 'Sent To'}`}
-                        required
-                    >
-                        <option value="" disabled selected>
-                            --
-                        </option>
-                        <For each={destinations()}>{(dest) => <option value={dest.id}>{dest.name}</option>}</For>
-                    </SelectInput>
-                </div>
-
-                {/* --- SECTION 3: QUANTITY --- */}
                 <div class="pt-2">
                     <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
                         <label
@@ -250,7 +199,6 @@ function TransactionFormContent() {
                     </div>
                 </div>
 
-                {/* --- FEEDBACK & SUBMIT --- */}
                 <Show when={submission.result?.success === false}>
                     <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-3 animate-in slide-in-from-top-1">
                         <svg
@@ -283,17 +231,11 @@ function TransactionFormContent() {
     );
 }
 
-// ==========================================
-// 4. SKELETON LOADER
-// ==========================================
-
 function FormSkeleton() {
     return (
         <div class="space-y-8 opacity-40">
-            {/* Item Details Skeleton */}
             <div class="space-y-4">
                 <div class="h-3 w-24 bg-zinc-200 rounded animate-pulse" />
-                <div class="h-[66px] bg-zinc-200 rounded-xl animate-pulse" />
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="h-[66px] bg-zinc-200 rounded-xl animate-pulse" />
                     <div class="h-[66px] bg-zinc-200 rounded-xl animate-pulse" />
@@ -302,28 +244,24 @@ function FormSkeleton() {
 
             <div class="w-full h-px bg-zinc-200 border-t border-dashed border-zinc-200" />
 
-            {/* Logistics Skeleton */}
             <div class="space-y-4">
                 <div class="h-3 w-20 bg-zinc-200 rounded animate-pulse" />
-                <div class="h-[66px] bg-zinc-200 rounded-xl animate-pulse" />
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="h-[66px] bg-zinc-200 rounded-xl animate-pulse" />
+                    <div class="h-[66px] bg-zinc-200 rounded-xl animate-pulse" />
+                </div>
             </div>
 
-            {/* Quantity Skeleton */}
             <div class="pt-2">
                 <div class="h-[74px] bg-zinc-200 rounded-xl animate-pulse" />
             </div>
 
-            {/* Button Skeleton */}
             <div class="pt-4">
                 <div class="h-[54px] bg-zinc-200 rounded-xl animate-pulse" />
             </div>
         </div>
     );
 }
-
-// ==========================================
-// 5. UI COMPONENTS (Select Input)
-// ==========================================
 
 type SelectProps = {
     name: string;
@@ -339,7 +277,6 @@ function SelectInput(props: SelectProps) {
             <label class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500 select-none group-focus-within:text-zinc-800 transition-colors">
                 {props.label}
             </label>
-            {/* Custom Arrow UI */}
             <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500 group-hover:text-zinc-700">
                 <svg
                     xmlns="http://www.w3.org/2000/svg"

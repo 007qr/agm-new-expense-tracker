@@ -19,8 +19,8 @@ export const SiteCard: Component<SiteCardProps> = (props) => {
             class="
         group relative flex items-center justify-between
         p-5 rounded-2xl
-        bg-zinc-900/50 border border-white/10
-        hover:border-white/30 hover:bg-white/5
+        bg-white border border-black/10
+        hover:border-black/20 hover:bg-zinc-50
         transition-all duration-300 ease-out
         cursor-pointer w-full max-w-sm
       "
@@ -28,10 +28,10 @@ export const SiteCard: Component<SiteCardProps> = (props) => {
             <div class="flex items-center gap-4">
                 <div
                     class="
-            w-12 h-12 rounded-xl bg-white/5
+            w-12 h-12 rounded-xl bg-black/5
             flex items-center justify-center
-            text-2xl border border-white/5
-            group-hover:scale-110 group-hover:bg-white/10
+            text-2xl border border-black/10
+            group-hover:scale-110 group-hover:bg-black/10
             transition-all duration-300
           "
                 >
@@ -39,10 +39,10 @@ export const SiteCard: Component<SiteCardProps> = (props) => {
                 </div>
 
                 <div class="flex flex-col">
-                    <span class="text-white font-semibold text-lg tracking-tight group-hover:text-white transition-colors">
+                    <span class="text-black font-semibold text-lg tracking-tight group-hover:text-black transition-colors">
                         {props.name}
                     </span>
-                    <span class="text-[#86868b] text-xs font-medium uppercase tracking-wider group-hover:text-gray-400">
+                    <span class="text-zinc-600 text-xs font-medium uppercase tracking-wider group-hover:text-zinc-700">
                         Open {props.isWarehouse ? 'Godown' : 'Site'}
                     </span>
                 </div>
@@ -50,8 +50,8 @@ export const SiteCard: Component<SiteCardProps> = (props) => {
 
             <div
                 class="
-          text-[#86868b]
-          group-hover:text-white
+          text-zinc-500
+          group-hover:text-black
           group-hover:translate-x-1 group-hover:-translate-y-1
           transition-all duration-300
         "
@@ -69,7 +69,7 @@ export const SiteCardSkeleton: Component<SiteCardSkeletonProps> = (props) => {
             class="
         relative flex items-center justify-between
         p-5 rounded-2xl
-        bg-brand border border-white/10
+        bg-white border border-black/10
         transition-all duration-300 ease-out
         w-full max-w-sm
       "
@@ -80,24 +80,24 @@ export const SiteCardSkeleton: Component<SiteCardSkeletonProps> = (props) => {
             <div class="flex items-center gap-4">
                 <div
                     class="
-            w-12 h-12 rounded-xl bg-white/5
+            w-12 h-12 rounded-xl bg-black/5
             flex items-center justify-center
-            border border-white/5
+            border border-black/10
           "
                 >
-                    <div class="h-6 w-6 rounded-md bg-white/10 animate-pulse" />
+                    <div class="h-6 w-6 rounded-md bg-black/10 animate-pulse" />
                 </div>
 
                 <div class="flex flex-col">
                     <div class="space-y-2">
-                        <div class="h-4 w-32 rounded bg-white/10 animate-pulse" />
-                        <div class="h-3 w-16 rounded bg-white/10 animate-pulse" />
+                        <div class="h-4 w-32 rounded bg-black/10 animate-pulse" />
+                        <div class="h-3 w-16 rounded bg-black/10 animate-pulse" />
                     </div>
                 </div>
             </div>
 
-            <div class="text-[#86868b]">
-                <div class="h-6 w-6 rounded bg-white/10 animate-pulse" />
+            <div class="text-zinc-500">
+                <div class="h-6 w-6 rounded bg-black/10 animate-pulse" />
             </div>
         </div>
     );

@@ -1,13 +1,15 @@
-import { createAsync, query, useParams } from '@solidjs/router';
-import { desc, eq, or, sql } from 'drizzle-orm';
+import { action, createAsync, query, redirect, useLocation, useParams, useSubmission } from '@solidjs/router';
+import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { createEffect, createSignal, For, Show, Suspense } from 'solid-js';
 import { db } from '~/drizzle/client';
 import { Destination, EntityVariantWarehouse, EntityWarehouse, WarehouseTransaction } from '~/drizzle/schema';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 
-export const loadTransactions = query(async (dest: string, limit: number, offset: number) => {
+export const loadTransactions = query(async (dest: string, entity: string, limit: number, offset: number) => {
     'use server';
+
+    const entityFilter = entity?.trim();
 
     const variantDetails = sql<string>`
         ${EntityVariantWarehouse.length} || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
@@ -18,13 +20,17 @@ export const loadTransactions = query(async (dest: string, limit: number, offset
 
     const sourceDestination = alias(Destination, 'source_destination');
     const targetDestination = alias(Destination, 'target_destination');
+    const baseFilter = or(eq(WarehouseTransaction.destination_id, dest), eq(WarehouseTransaction.source_id, dest));
+    const filters = entityFilter ? and(baseFilter, eq(WarehouseTransaction.entity_id, entityFilter)) : baseFilter;
 
     const transactions = await db
         .select({
+            id: WarehouseTransaction.id,
             created_at: WarehouseTransaction.created_at,
             type: WarehouseTransaction.type,
             quantity: WarehouseTransaction.quantity,
             entity_name: EntityWarehouse.name,
+            unit: EntityWarehouse.unit,
             variant_formatted: variantDetails,
             source_name: sourceDestination.name,
             destination_name: targetDestination.name,
@@ -36,7 +42,7 @@ export const loadTransactions = query(async (dest: string, limit: number, offset
         .leftJoin(EntityVariantWarehouse, eq(WarehouseTransaction.entity_variant_id, EntityVariantWarehouse.id))
         .leftJoin(sourceDestination, eq(WarehouseTransaction.source_id, sourceDestination.id))
         .leftJoin(targetDestination, eq(WarehouseTransaction.destination_id, targetDestination.id))
-        .where(or(eq(WarehouseTransaction.destination_id, dest), eq(WarehouseTransaction.source_id, dest)))
+        .where(filters)
         .orderBy(desc(WarehouseTransaction.created_at))
         .limit(limit)
         .offset(offset);
@@ -44,7 +50,7 @@ export const loadTransactions = query(async (dest: string, limit: number, offset
     const totalCount = await db
         .select({ total: sql<number>`COUNT(*)`.as('total') })
         .from(WarehouseTransaction)
-        .where(or(eq(WarehouseTransaction.destination_id, dest), eq(WarehouseTransaction.source_id, dest)))
+        .where(filters)
         .then((rows) => rows[0]?.total ?? 0);
 
     const destination = db.select({ name: Destination.name }).from(Destination).where(eq(Destination.id, dest));
@@ -56,14 +62,59 @@ export const loadTransactions = query(async (dest: string, limit: number, offset
     };
 }, 'transactions-by-destination-id');
 
+type ActionResponse = {
+    success: boolean;
+    error?: string;
+};
+
+export const deleteTransaction = action(async (formData: FormData): Promise<ActionResponse> => {
+    'use server';
+
+    const rawId = formData.get('id');
+    const rawDest = formData.get('dest');
+    const rawEntity = formData.get('entity');
+    const id = typeof rawId === 'string' ? rawId.trim() : '';
+    const dest = typeof rawDest === 'string' ? rawDest.trim() : '';
+    const entity = typeof rawEntity === 'string' ? rawEntity.trim() : '';
+
+    if (!id) {
+        return { success: false, error: 'Transaction id is missing.' };
+    }
+
+    try {
+        await db.delete(WarehouseTransaction).where(eq(WarehouseTransaction.id, id));
+        const search = entity ? `?entity=${encodeURIComponent(entity)}` : '';
+        throw redirect(dest ? `/destination/${dest}/ledger${search}` : '/dashboard');
+    } catch (error: unknown) {
+        if (error instanceof Response) throw error;
+        console.error('Database error:', error);
+        return { success: false, error: 'System error. Please try again.' };
+    }
+});
+
+const formatVariantDetails = (value: string) =>
+    value.replace(/-?\d+(\.\d+)?/g, (match) => {
+        const num = Number(match);
+        if (!Number.isFinite(num)) return match;
+        return num.toFixed(3).replace(/\.?0+$/, '');
+    });
+
 export default function LedgerPage() {
     const params = useParams<{ id: string }>();
+    const location = useLocation();
     const [page, setPage] = createSignal(1);
     const [pageSize, setPageSize] = createSignal(10);
+    const entityFilter = () => new URLSearchParams(location.search).get('entity') ?? '';
     const transactions = createAsync(() =>
-        loadTransactions(params.id, pageSize(), (page() - 1) * pageSize()),
+        loadTransactions(params.id, entityFilter(), pageSize(), (page() - 1) * pageSize()),
     );
     const totalCount = () => transactions()?.totalCount ?? 0;
+    const deletion = useSubmission(deleteTransaction);
+
+    createEffect(() => {
+        entityFilter();
+        setPage(1);
+    });
 
     createEffect(() => {
         const totalPages = Math.max(1, Math.ceil(totalCount() / pageSize()));
@@ -75,56 +126,75 @@ export default function LedgerPage() {
     return (
         <div class="w-full mx-auto px-4 py-12">
             <div class="mb-8 flex items-center justify-between">
-                <div>
-                    <h1 class="text-3xl font-bold text-white tracking-tight">Ledger</h1>
-                    <p class="text-zinc-400 mt-2 text-base">
-                        Transactions for Destination{' '}
-                        <Suspense
-                            fallback={
-                                <span class="w-20 bg-zinc-800/50 h-4 inline-block rounded-md align-middle animate-pulse"></span>
-                            }
-                        >
-                            <span class="font-mono text-zinc-300 underline">{transactions()?.destination}</span>
-                        </Suspense>
-                    </p>
+                <div class="space-y-2">
+                    <h1 class="text-3xl font-bold text-black tracking-tight">Material Abstract</h1>
+
+                    <Suspense fallback={<span class="block w-32 h-4 bg-zinc-200 rounded-md animate-pulse" />}>
+                        <p class="text-base text-zinc-600">
+                            Site name:
+                            <span class="ml-1 font-medium text-zinc-900">{transactions()?.destination}</span>
+                        </p>
+                    </Suspense>
                 </div>
             </div>
 
-            <div class="bg-brand border border-zinc-800/50 rounded-2xl overflow-hidden shadow-2xl shadow-black">
+            <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xl shadow-black/5">
+                <Show when={deletion.result?.success === false}>
+                    <div class="px-6 py-3 bg-red-500/10 border-b border-red-500/10 text-sm text-red-400">
+                        {deletion.result?.error}
+                    </div>
+                </Show>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
-                            <tr class="border-b border-zinc-800">
-                                <th class="py-5 pl-8 pr-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                            <tr class="border-b border-zinc-200">
+                                <th class="py-5 px-4 text-xs font-bold border-r border-zinc-200 uppercase tracking-wider text-zinc-800">
+                                    Sr no.
+                                </th>
+                                <th class="py-5 pl-8 pr-4 text-xs border-r border-zinc-200   font-bold uppercase tracking-wider text-zinc-800">
                                     Date
                                 </th>
-                                <th class="py-5 px-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                <th class="py-5 px-4 text-xs font-bold uppercase  border-r border-zinc-200  tracking-wider text-zinc-800">
                                     Type
                                 </th>
-                                <th class="py-5 px-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                                    Route
+                                <th class="py-5 px-4 text-xs font-bold uppercase  border-r border-zinc-200  tracking-wider text-zinc-800">
+                                    From/To
                                 </th>
-                                <th class="py-5 px-4 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                                    Entity
+                                <th class="py-5 px-4 text-xs font-bold border-r border-zinc-200  uppercase tracking-wider text-zinc-800">
+                                    Item
                                 </th>
-                                <th class="py-5 px-4 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                <th class="py-5 px-4 text-xs font-bold border-r border-zinc-200  uppercase tracking-wider text-zinc-800">
+                                    Size
+                                </th>
+                                <th class="py-5 px-4 text-right text-xs border-r border-zinc-200 font-bold uppercase tracking-wider text-zinc-800">
                                     Quantity
+                                </th>
+                                <th class="py-5 px-4 text-right text-xs border-r border-zinc-200 font-bold uppercase tracking-wider text-zinc-800">
+                                    Unit
+                                </th>
+                                <th class="py-5 pr-8 text-right text-xs  border-r border-zinc-200 font-bold uppercase tracking-wider text-zinc-800">
+                                    Actions
                                 </th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-zinc-800/50">
+                        <tbody class="divide-y divide-zinc-200">
                             <Suspense fallback={<TableSkeleton />}>
                                 <Show
                                     when={transactions()?.transactions && transactions()!.transactions.length > 0}
                                     fallback={<EmptyState />}
                                 >
                                     <For each={transactions()?.transactions}>
-                                        {(transaction) => {
+                                        {(transaction, index) => {
                                             const entityLabel = () => {
                                                 const name = transaction.entity_name ?? 'Unknown';
-                                                return transaction.variant_formatted
-                                                    ? `${name} ${transaction.variant_formatted}`
-                                                    : name;
+                                                return name;
+                                            };
+
+                                            const variant = () => {
+                                                const variant = transaction.variant_formatted
+                                                    ? formatVariantDetails(transaction.variant_formatted)
+                                                    : '--';
+                                                return variant;
                                             };
 
                                             const typeLabel = () => {
@@ -141,17 +211,12 @@ export default function LedgerPage() {
 
                                             const routeLabel = () => {
                                                 const isCurrentSource = transaction.source_id === params.id;
-                                                const currentName =
-                                                    transactions()?.destination ??
-                                                    (isCurrentSource ? transaction.source_name : transaction.destination_name) ??
-                                                    'Unknown';
+
                                                 const otherName = isCurrentSource
-                                                    ? transaction.destination_name ?? 'Unknown'
-                                                    : transaction.source_name ?? 'Unknown';
-                                                const displayType = typeLabel();
-                                                const arrow =
-                                                    displayType === 'debit' ? '->' : displayType === 'credit' ? '<-' : '->';
-                                                return `${currentName} ${arrow} ${otherName}`;
+                                                    ? (transaction.destination_name ?? 'Unknown')
+                                                    : (transaction.source_name ?? 'Unknown');
+
+                                                return `${otherName}`;
                                             };
 
                                             const quantityValue = () => {
@@ -160,27 +225,56 @@ export default function LedgerPage() {
                                             };
 
                                             return (
-                                                <tr class="group hover:bg-white/2 transition-colors duration-200">
-                                                    <td class="py-5 pl-8 pr-4 text-sm text-zinc-300">
+                                                <tr class="group hover:bg-zinc-50 transition-colors duration-200">
+                                                    <td class="py-5 border-r border-zinc-200  pl-8 text-sm text-zinc-700">
+                                                        {index() + 1}
+                                                    </td>
+                                                    <td class="py-5 border-r border-zinc-200  pl-8 pr-4 text-sm text-zinc-700">
                                                         {transaction.created_at
                                                             ? new Date(transaction.created_at).toLocaleDateString()
                                                             : '-'}
                                                     </td>
-                                                    <td class="py-5 px-4">
-                                                        <span
-                                                            class={`text-xs font-semibold uppercase ${
-                                                                typeLabel() === 'debit'
-                                                                    ? 'text-red-500'
-                                                                    : 'text-green-400'
-                                                            }`}
-                                                        >
-                                                            {typeLabel()}
+                                                    <td class="py-5 px-4  border-r border-zinc-200 ">
+                                                        <span class="text-xs  text-zinc-700 uppercase">
+                                                            {typeLabel() === 'debit' ? 'Outward' : 'Inward'}
                                                         </span>
                                                     </td>
-                                                    <td class="py-5 px-4 text-sm text-zinc-300">{routeLabel()}</td>
-                                                    <td class="py-5 px-4 text-sm text-white">{entityLabel()}</td>
-                                                    <td class="py-5 px-4 text-right text-sm text-white">
+                                                    <td class="py-5 px-4  border-r border-zinc-200  text-sm text-zinc-700">
+                                                        {routeLabel()}
+                                                    </td>
+                                                    <td class="py-5 px-4 border-r border-zinc-200  text-sm text-black">
+                                                        {entityLabel()}
+                                                    </td>
+                                                    <td class="py-5 px-4  border-r border-zinc-200  text-sm text-black">
+                                                        {variant()}
+                                                    </td>
+                                                    <td class="py-5 px-4 border-r border-zinc-200  text-right text-sm text-black">
                                                         {quantityValue()}
+                                                    </td>
+                                                    <td class="py-5 px-4  border-r border-zinc-200 text-right text-sm text-black">
+                                                        {transaction.unit ?? ''}
+                                                    </td>
+                                                    <td class="py-5 pr-8 border-r border-zinc-200  text-right">
+                                                        <form action={deleteTransaction} method="post">
+                                                            <input type="hidden" name="id" value={transaction.id} />
+                                                            <input type="hidden" name="dest" value={params.id} />
+                                                            <input type="hidden" name="entity" value={entityFilter()} />
+                                                            <button
+                                                                type="submit"
+                                                                class="text-xs font-semibold text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg px-3 py-1.5 transition-colors"
+                                                                onClick={(event) => {
+                                                                    if (
+                                                                        !window.confirm(
+                                                                            'Delete this transaction? This cannot be undone.',
+                                                                        )
+                                                                    ) {
+                                                                        event.preventDefault();
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </form>
                                                     </td>
                                                 </tr>
                                             );
@@ -193,13 +287,13 @@ export default function LedgerPage() {
                 </div>
                 <Suspense
                     fallback={
-                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                        <div class="border-t border-zinc-200 px-6 py-4">
                             <PaginationSkeleton />
                         </div>
                     }
                 >
                     <Show when={totalCount() > 0}>
-                        <div class="border-t border-zinc-800/50 px-6 py-4">
+                        <div class="border-t border-zinc-200 px-6 py-4">
                             <Pagination
                                 page={page()}
                                 pageSize={pageSize()}
@@ -222,7 +316,7 @@ const EmptyState = () => (
     <tr>
         <td colspan={6} class="py-16 text-center">
             <div class="flex flex-col items-center justify-center gap-3">
-                <div class="p-3 bg-zinc-900 rounded-full border border-zinc-800">
+                <div class="p-3 bg-zinc-100 rounded-full border border-zinc-200">
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
@@ -249,19 +343,22 @@ const TableSkeleton = () => (
         {() => (
             <tr class="animate-pulse">
                 <td class="py-5 pl-8 pr-4">
-                    <div class="h-4 w-24 bg-zinc-800/50 rounded"></div>
+                    <div class="h-4 w-24 bg-zinc-200 rounded"></div>
                 </td>
                 <td class="py-5 px-4">
-                    <div class="h-4 w-16 bg-zinc-800/50 rounded"></div>
+                    <div class="h-4 w-16 bg-zinc-200 rounded"></div>
                 </td>
                 <td class="py-5 px-4">
-                    <div class="h-4 w-40 bg-zinc-800/50 rounded"></div>
+                    <div class="h-4 w-40 bg-zinc-200 rounded"></div>
                 </td>
                 <td class="py-5 px-4">
-                    <div class="h-4 w-36 bg-zinc-800/50 rounded"></div>
+                    <div class="h-4 w-36 bg-zinc-200 rounded"></div>
                 </td>
                 <td class="py-5 px-4 text-right">
-                    <div class="h-4 w-12 bg-zinc-800/50 rounded inline-block"></div>
+                    <div class="h-4 w-12 bg-zinc-200 rounded inline-block"></div>
+                </td>
+                <td class="py-5 pr-8 text-right">
+                    <div class="h-4 w-16 bg-zinc-200 rounded inline-block"></div>
                 </td>
             </tr>
         )}

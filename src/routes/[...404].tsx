@@ -2,7 +2,7 @@ import { Component } from "solid-js";
 
 const NotFound: Component = () => {
   return (
-    <div class="min-h-screen w-full flex flex-col items-center justify-center font-sans antialiased selection:bg-white selection:text-brand relative">
+    <div class="min-h-screen w-full flex flex-col items-center justify-center font-sans antialiased selection:bg-black selection:text-white relative">
       <div class="text-center px-6 max-w-2xl mx-auto z-10">
         <h1 class="text-[10rem] md:text-[14rem] font-medium leading-none tracking-tighter text-secondary select-none">
           404

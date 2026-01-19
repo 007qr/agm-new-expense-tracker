@@ -1,16 +1,6 @@
 @import 'tailwindcss';
 
-:root {
-    --background-rgb: 29, 29, 31;
-    --foreground-rgb: 0, 0, 0;
-}
-
 @theme {
-    --color-brand: #1d1d1f;
-    --color-secondary: #fff;
-}
-
-body {
-    background: rgb(var(--background-rgb));
-    color: rgb(var(--foreground-rgb));
+    --color-brand: #fff;
+    --color-secondary: black;
 }

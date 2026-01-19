@@ -55,15 +55,15 @@ export default function CreateDestinationPage() {
             <div class="w-full max-w-3xl animate-in fade-in zoom-in-95 duration-500">
                 {/* Header */}
                 <div class="mb-8">
-                    <h1 class="text-xl font-medium text-white tracking-tight">New Site/Godown</h1>
+                    <h1 class="text-xl font-medium text-black tracking-tight">New Site/Godown</h1>
                     <p class="text-zinc-500 text-sm mt-1">Add a location to your network.</p>
                 </div>
 
                 <form action={createDestination} method="post" class="space-y-4">
-                    <div class="group relative bg-zinc-900/40 border border-zinc-800 focus-within:border-zinc-500 focus-within:ring-1 focus-within:ring-zinc-500 rounded-xl transition-all duration-200">
+                    <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
                         <label
                             for="name"
-                            class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500 select-none group-focus-within:text-zinc-400 transition-colors"
+                            class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500 select-none group-focus-within:text-zinc-700 transition-colors"
                         >
                             Destination Name
                         </label>
@@ -73,17 +73,17 @@ export default function CreateDestinationPage() {
                             type="text"
                             required
                             placeholder="e.g. Pune Central Hub"
-                            class="w-full bg-transparent text-white text-sm px-3.5 pt-7 pb-2.5 outline-none placeholder:text-zinc-700 transition-colors"
+                            class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none placeholder:text-zinc-400 transition-colors"
                         />
                     </div>
 
                     {/* Warehouse Toggle */}
                     <div
-                        class="flex items-center justify-between px-3.5 py-3 bg-zinc-900/40 border border-zinc-800 rounded-xl cursor-pointer hover:border-zinc-700 hover:bg-zinc-900/60 transition-all group"
+                        class="flex items-center justify-between px-3.5 py-3 bg-white border border-zinc-200 rounded-xl cursor-pointer hover:border-zinc-300 hover:bg-zinc-50 transition-all group"
                         onClick={() => setIsWarehouse(!isWarehouse())}
                     >
                         <div class="flex flex-col">
-                            <span class="text-sm font-medium text-zinc-300 group-hover:text-zinc-200 transition-colors">
+                            <span class="text-sm font-medium text-zinc-700 group-hover:text-black transition-colors">
                                 Is this a godown?
                             </span>
                         </div>
@@ -92,10 +92,10 @@ export default function CreateDestinationPage() {
 
                         {/* Switch UI */}
                         <div
-                            class={`relative w-9 h-5 rounded-full transition-colors duration-200 ${isWarehouse() ? 'bg-zinc-100' : 'bg-zinc-800'}`}
+                            class={`relative w-9 h-5 rounded-full transition-colors duration-200 ${isWarehouse() ? 'bg-black' : 'bg-zinc-300'}`}
                         >
                             <div
-                                class={`absolute top-1 left-1 w-3 h-3 rounded-full shadow-sm transform transition-transform duration-200 ${isWarehouse() ? 'translate-x-4 bg-black' : 'translate-x-0 bg-zinc-500'}`}
+                                class={`absolute top-1 left-1 w-3 h-3 rounded-full shadow-sm transform transition-transform duration-200 ${isWarehouse() ? 'translate-x-4 bg-white' : 'translate-x-0 bg-zinc-600'}`}
                             />
                         </div>
                     </div>
@@ -110,7 +110,7 @@ export default function CreateDestinationPage() {
                     <button
                         type="submit"
                         disabled={submission.pending}
-                        class="w-full bg-white hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed text-black font-semibold text-sm rounded-xl py-3 transition-all active:scale-[0.98] shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+                        class="w-full bg-secondary hover:bg-black/90 disabled:opacity-50 disabled:cursor-not-allowed text-brand font-semibold text-sm rounded-xl py-3 transition-all active:scale-[0.98]"
                     >
                         {submission.pending ? 'Creating...' : 'Create'}
                     </button>

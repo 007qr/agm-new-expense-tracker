@@ -23,14 +23,14 @@ export default function AppRoot(props: { children: JSX.Element }) {
     const navigationItems: SidebarItem[] = [
         { label: 'Dashboard', href: '/dashboard', icon: IconGrid },
         { label: 'Items', href: '/items', icon: IconGrid },
-        { label: 'Construction Sites', href: '/sites', icon: IconUsers },
+        { label: 'New transaction', href: '/new-transaction', icon: IconGrid },
     ];
     return (
         <>
-            <div class="flex h-screen bg-black">
+            <div class="flex h-screen bg-brand">
                 <Sidebar items={navigationItems} />
                 <Suspense>
-                    <main class="flex-1 overflow-y-auto bg-brand p-8">
+                    <main class="flex-1 overflow-y-auto bg-brand p-8 text-secondary">
                         <div class="max-w-7xl mx-auto">{props.children}</div>
                     </main>
                 </Suspense>

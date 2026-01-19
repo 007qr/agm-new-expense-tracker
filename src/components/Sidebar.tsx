@@ -50,25 +50,25 @@ const Sidebar: Component<SidebarProps> = (props) => {
 
   return (
     <aside
-      class="flex flex-col h-screen bg-brand border-r border-white/5 transition-[width] duration-300 ease-[cubic-bezier(0.2,0,0,1)]"
+      class="flex flex-col h-screen bg-brand border-r border-black/10 transition-[width] duration-300 ease-[cubic-bezier(0.2,0,0,1)]"
       classList={{
         "w-20": isCollapsed(),
         "w-84": !isCollapsed(),
       }}
     >
-      <div class="h-16 flex items-center justify-between px-5 border-b border-white/5 shrink-0">
+      <div class="h-16 flex items-center justify-between px-5 border-b border-black/10 shrink-0">
         <div
           class="flex items-center gap-3 overflow-hidden"
           classList={{
             "w-0 opacity-0": isCollapsed(),
           }}
         >
-          <div class="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center shrink-0 text-white font-bold text-xs">
+          <div class="w-8 h-8 bg-black rounded-lg flex items-center justify-center shrink-0 text-white font-bold text-xs">
             AG
           </div>
 
           <div class="flex flex-col transition-opacity duration-200">
-            <span class="font-bold text-white text-base leading-tight truncate">
+            <span class="font-bold text-black text-base leading-tight truncate">
               AGM Construction
             </span>
           </div>
@@ -79,7 +79,7 @@ const Sidebar: Component<SidebarProps> = (props) => {
             "mr-4": isCollapsed(),
           }}
           onClick={() => setIsCollapsed(!isCollapsed())}
-          class="text-[#86868b] hover:text-white rounded-md hover:bg-white/5 transition-colors"
+          class="text-zinc-600 hover:text-black rounded-md hover:bg-black/5 transition-colors"
           title={isCollapsed() ? "Expand Sidebar" : "Collapse Sidebar"}
         >
           <IconPanelLeft class="w-5 h-5 transition-transform duration-300" />
@@ -92,8 +92,8 @@ const Sidebar: Component<SidebarProps> = (props) => {
             <A
               href={item.href}
               end={item.href === "/dashboard"}
-              activeClass="bg-white/10 text-white shadow-sm"
-              inactiveClass="text-[#86868b] hover:bg-white/5 hover:text-white"
+              activeClass="bg-black text-white shadow-sm"
+              inactiveClass="text-zinc-600 hover:bg-black/5 hover:text-black"
               class="group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 overflow-hidden whitespace-nowrap"
             >
               <item.icon class="w-5 h-5 shrink-0" />
@@ -108,7 +108,7 @@ const Sidebar: Component<SidebarProps> = (props) => {
                 {item.label}
               </span>
               <Show when={isCollapsed()}>
-                <div class="absolute left-16 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap">
+                <div class="absolute left-16 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap">
                   {item.label}
                 </div>
               </Show>
@@ -118,12 +118,12 @@ const Sidebar: Component<SidebarProps> = (props) => {
       </nav>
 
       {/* --- Footer / User / Logout --- */}
-      <div class="p-3 border-t border-white/5 shrink-0">
+      <div class="p-3 border-t border-black/10 shrink-0">
         <form action={logoutAction} method="post">
           <button
             type="submit"
             disabled={loggingOut.pending}
-            class="group flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[#86868b] hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 overflow-hidden whitespace-nowrap"
+            class="group flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-zinc-600 hover:bg-red-500/10 hover:text-red-500 transition-all duration-200 overflow-hidden whitespace-nowrap"
           >
             <IconLogOut
               class={`w-5 h-5 shrink-0 ${loggingOut.pending ? "animate-pulse" : ""}`}
@@ -140,7 +140,7 @@ const Sidebar: Component<SidebarProps> = (props) => {
             </span>
 
             <Show when={isCollapsed()}>
-              <div class="absolute left-16 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+              <div class="absolute left-16 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                 Sign Out
               </div>
             </Show>
