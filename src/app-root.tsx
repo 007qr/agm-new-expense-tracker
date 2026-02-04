@@ -1,5 +1,7 @@
 import { JSX, Suspense } from 'solid-js';
 import Sidebar, { SidebarItem } from './components/Sidebar';
+import { useLocation } from '@solidjs/router';
+import { } from './lib/auth-client';
 
 // Define your icons here or import them
 const IconGrid = (p: any) => (

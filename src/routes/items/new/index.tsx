@@ -49,12 +49,12 @@ export const createItem = action(async (formData: FormData): Promise<ActionRespo
 
     const name = getStringField('name');
     const unit = getStringField('unit');
-    const type = getStringField('type');
+    const type = 'cash';
     const variantsRaw = getStringField('variants');
 
     if (!name) return { success: false, error: 'Item name is required.' };
     if (!unit) return { success: false, error: 'Unit is required.' };
-    if (!type || !isEntityType(type)) return { success: false, error: 'Item type is invalid.' };
+
 
     let parsedVariants: unknown = [];
     if (variantsRaw) {
@@ -204,29 +204,7 @@ export default function CreateItemPage() {
                             </div>
                         </div>
 
-                        <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
-                            <label
-                                for="type"
-                                class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-600 select-none group-focus-within:text-zinc-800 transition-colors"
-                            >
-                                Type
-                            </label>
-                            <select
-                                id="type"
-                                name="type"
-                                required
-                                class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer [&>option]:bg-white [&>option]:text-black"
-                            >
-                                <option value="" disabled selected>
-                                    Select a type...
-                                </option>
-                                <For each={EntityType}>
-                                    {(type) => (
-                                        <option value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
-                                    )}
-                                </For>
-                            </select>
-                        </div>
+
 
                         {/* Variants Section */}
                         <div class="space-y-5">
