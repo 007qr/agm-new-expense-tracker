@@ -12,10 +12,15 @@ export const loadTransactions = query(async (dest: string, entity: string, limit
     const entityFilter = entity?.trim();
 
     const variantDetails = sql<string>`
-        ${EntityVariantWarehouse.length} || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
-        ${EntityVariantWarehouse.width}  || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
-        ${EntityVariantWarehouse.height} || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
-        ${EntityVariantWarehouse.thickness} || ' ' || ${EntityVariantWarehouse.thickness_unit}
+        NULLIF(
+            CONCAT_WS(' x ',
+                (CASE WHEN ${EntityVariantWarehouse.length} IS NOT NULL AND ${EntityVariantWarehouse.length}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.length}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')) ELSE NULL END),
+                (CASE WHEN ${EntityVariantWarehouse.width} IS NOT NULL AND ${EntityVariantWarehouse.width}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.width}::text, '')  || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')) ELSE NULL END),
+                (CASE WHEN ${EntityVariantWarehouse.height} IS NOT NULL AND ${EntityVariantWarehouse.height}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.height}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')) ELSE NULL END),
+                (CASE WHEN ${EntityVariantWarehouse.thickness} IS NOT NULL AND ${EntityVariantWarehouse.thickness}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.thickness}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.thickness_unit}, '')) ELSE NULL END)
+            ),
+            ''
+        )
     `;
 
     const sourceDestination = alias(Destination, 'source_destination');
