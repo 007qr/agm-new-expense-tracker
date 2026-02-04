@@ -5,6 +5,7 @@ import { db } from '~/drizzle/client';
 import { EntityType, EntityVariantWarehouse, EntityWarehouse } from '~/drizzle/schema';
 
 type VariantInput = {
+    id?: string;
     length: string;
     width: string;
     height: string;
@@ -14,6 +15,7 @@ type VariantInput = {
 };
 
 type NormalizedVariant = {
+    id?: string;
     length: string | null;
     width: string | null;
     height: string | null;
@@ -55,6 +57,7 @@ const loadItemForEdit = query(async (itemId: string) => {
 
     const variants = await db
         .select({
+            id: EntityVariantWarehouse.id,
             length: EntityVariantWarehouse.length,
             width: EntityVariantWarehouse.width,
             height: EntityVariantWarehouse.height,
@@ -125,6 +128,7 @@ export const updateItem = action(async (formData: FormData): Promise<ActionRespo
               .map((variant) => {
                   const raw = variant as Partial<VariantInput>;
                   return {
+                      id: raw.id,
                       length: toNumericString(raw.length),
                       width: toNumericString(raw.width),
                       height: toNumericString(raw.height),
@@ -137,31 +141,90 @@ export const updateItem = action(async (formData: FormData): Promise<ActionRespo
         : [];
 
     try {
-        const updated = await db
-            .update(EntityWarehouse)
-            .set({ name, unit, type })
-            .where(eq(EntityWarehouse.id, id))
-            .returning();
+        let deleteErrorMessage: string | null = null;
+        
+        await db.transaction(async (tx) => {
+            const updated = await tx
+                .update(EntityWarehouse)
+                .set({ name, unit, type })
+                .where(eq(EntityWarehouse.id, id))
+                .returning();
 
-        if (updated.length === 0) {
-            return { success: false, error: 'Item not found.' };
+            if (updated.length === 0) {
+                tx.rollback();
+                return;
+            }
+
+            const originalVariants = await tx
+                .select({ id: EntityVariantWarehouse.id })
+                .from(EntityVariantWarehouse)
+                .where(eq(EntityVariantWarehouse.entity_id, id));
+
+            const originalVariantIds = new Set(originalVariants.map((v) => v.id));
+            const submittedVariantIds = new Set<string>();
+
+            const variantsToUpdate: (NormalizedVariant & { id: string })[] = [];
+            const variantsToCreate: NormalizedVariant[] = [];
+
+            for (const variant of normalizedVariants) {
+                if (variant.id && originalVariantIds.has(variant.id)) {
+                    variantsToUpdate.push({ ...variant, id: variant.id });
+                    submittedVariantIds.add(variant.id);
+                } else {
+                    variantsToCreate.push(variant);
+                }
+            }
+
+            const variantsToDelete = [...originalVariantIds].filter((variantId) => !submittedVariantIds.has(variantId));
+
+            // Perform updates
+            for (const variant of variantsToUpdate) {
+                await tx
+                    .update(EntityVariantWarehouse)
+                    .set({
+                        length: variant.length,
+                        width: variant.width,
+                        height: variant.height,
+                        thickness: variant.thickness,
+                        dimension_unit: variant.dimension_unit,
+                        thickness_unit: variant.thickness_unit,
+                    })
+                    .where(eq(EntityVariantWarehouse.id, variant.id));
+            }
+
+            // Perform creates
+            if (variantsToCreate.length > 0) {
+                await tx.insert(EntityVariantWarehouse).values(
+                    variantsToCreate.map((variant) => ({
+                        entity_id: id,
+                        length: variant.length,
+                        width: variant.width,
+                        height: variant.height,
+                        thickness: variant.thickness,
+                        dimension_unit: variant.dimension_unit,
+                        thickness_unit: variant.thickness_unit,
+                    })),
+                );
+            }
+
+            // Perform deletes
+            for (const variantId of variantsToDelete) {
+                try {
+                    await tx.delete(EntityVariantWarehouse).where(eq(EntityVariantWarehouse.id, variantId));
+                } catch (error: unknown) {
+                    if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23503') {
+                        deleteErrorMessage = "Some variants couldn't be deleted as they are part of existing transactions, but other changes were saved.";
+                    } else {
+                        throw error;
+                    }
+                }
+            }
+        });
+        
+        if (deleteErrorMessage) {
+            return { success: false, error: deleteErrorMessage };
         }
 
-        await db.delete(EntityVariantWarehouse).where(eq(EntityVariantWarehouse.entity_id, id));
-
-        if (normalizedVariants.length > 0) {
-            await db.insert(EntityVariantWarehouse).values(
-                normalizedVariants.map((variant) => ({
-                    entity_id: id,
-                    length: variant.length,
-                    width: variant.width,
-                    height: variant.height,
-                    thickness: variant.thickness,
-                    dimension_unit: variant.dimension_unit,
-                    thickness_unit: variant.thickness_unit,
-                })),
-            );
-        }
 
         throw redirect(`/items`);
     } catch (error: unknown) {
@@ -194,6 +257,7 @@ export default function EditItemPage() {
         setUnit(payload.item?.unit ?? '');
         setVariants(
             payload.variants.map((variant) => ({
+                id: variant.id,
                 length: variant.length ? String(variant.length) : '',
                 width: variant.width ? String(variant.width) : '',
                 height: variant.height ? String(variant.height) : '',
