@@ -10,10 +10,15 @@ export const loadEntitiesForDestination = query(async (dest: string, limit: numb
 
     // 1. Define the formatted string logic
     const variantDetails = sql<string>`
-        ${EntityVariantWarehouse.length} || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
-        ${EntityVariantWarehouse.width}  || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
-        ${EntityVariantWarehouse.height} || ' ' || ${EntityVariantWarehouse.dimension_unit} || ' x ' ||
-        ${EntityVariantWarehouse.thickness} || ' ' || ${EntityVariantWarehouse.thickness_unit}
+        NULLIF(
+            CONCAT_WS(' x ',
+                NULLIF(TRIM(COALESCE(${EntityVariantWarehouse.length}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')), ''),
+                NULLIF(TRIM(COALESCE(${EntityVariantWarehouse.width}::text, '')  || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')), ''),
+                NULLIF(TRIM(COALESCE(${EntityVariantWarehouse.height}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')), ''),
+                NULLIF(TRIM(COALESCE(${EntityVariantWarehouse.thickness}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.thickness_unit}, '')), '')
+            ),
+            ''
+        )
     `;
 
     // 2. Perform the heavy aggregation on IDs ONLY (Fastest operation)
