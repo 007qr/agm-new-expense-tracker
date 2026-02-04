@@ -83,7 +83,7 @@ export const updateItem = action(async (formData: FormData): Promise<ActionRespo
     const id = getStringField('id');
     const name = getStringField('name');
     const unit = getStringField('unit');
-    const type = getStringField('type');
+    const type = 'cash';
     const variantsRaw = getStringField('variants');
 
     if (!id) {
@@ -95,9 +95,7 @@ export const updateItem = action(async (formData: FormData): Promise<ActionRespo
     if (!unit) {
         return { success: false, error: 'Unit is required.' };
     }
-    if (!type || !isEntityType(type)) {
-        return { success: false, error: 'Item type is invalid.' };
-    }
+
 
     let parsedVariants: unknown = [];
     if (variantsRaw) {
@@ -186,7 +184,6 @@ export default function EditItemPage() {
     const [initialized, setInitialized] = createSignal(false);
     const [name, setName] = createSignal('');
     const [unit, setUnit] = createSignal('');
-    const [type, setType] = createSignal('');
     const [variants, setVariants] = createSignal<VariantInput[]>([]);
 
     createEffect(() => {
@@ -195,7 +192,6 @@ export default function EditItemPage() {
 
         setName(payload.item?.name ?? '');
         setUnit(payload.item?.unit ?? '');
-        setType(payload.item?.type ?? '');
         setVariants(
             payload.variants.map((variant) => ({
                 length: variant.length ? String(variant.length) : '',
@@ -287,33 +283,7 @@ export default function EditItemPage() {
                             </div>
                         </div>
 
-                        <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
-                            <label
-                                for="type"
-                                class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-600 select-none group-focus-within:text-zinc-800 transition-colors"
-                            >
-                                Type
-                            </label>
-                            <select
-                                id="type"
-                                name="type"
-                                required
-                                value={type()}
-                                onChange={(e) => setType(e.currentTarget.value)}
-                                class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer [&>option]:bg-white [&>option]:text-black"
-                            >
-                                <option value="" disabled>
-                                    Select a type...
-                                </option>
-                                <For each={EntityType}>
-                                    {(itemType) => (
-                                        <option value={itemType}>
-                                            {itemType.charAt(0).toUpperCase() + itemType.slice(1)}
-                                        </option>
-                                    )}
-                                </For>
-                            </select>
-                        </div>
+
 
                         <div class="space-y-5">
                             <div class="flex items-center justify-between">
