@@ -45,8 +45,8 @@ export const createExpense = action(async (formData: FormData) => {
 
         if (addTransportationCost) {
             const vehicleType = getStringField('vehicle_type');
-            const regNo = getStringField('reg_no');
-            const cost = getNumericField('transportation_cost');
+    const regNo = getStringField('reg_no');
+    const transportationCostAmount = getNumericField('transportation_cost');
             if (!vehicleType || !regNo || cost === null || cost <= 0)
                 return { error: 'Invalid transportation cost details.' };
 
@@ -107,88 +107,85 @@ function FormContent() {
     const entities = () => data()?.entities ?? [];
     const destinations = () => data()?.destinations ?? [];
 
-    const [quantity, setQuantity] = createSignal(0);
-    const [rate, setRate] = createSignal(0);
-    const amount = createMemo(() => (quantity() * rate()).toFixed(2));
-
-    const [addTransportation, setAddTransportation] = createSignal(false);
-
-    return (
-        <div class="space-y-8">
-            <div class="mb-10">
-                <h1 class="text-2xl font-semibold text-black">New Expense</h1>
-                <p class="text-zinc-600 text-sm mt-1">Record a new expense for this destination.</p>
-            </div>
-
-            <form action={createExpense} method="post" class="space-y-8">
-                
-                {/* Section for Route */}
-                <div class="space-y-5">
-                    <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Route</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <SelectInput name="source_id" label="Paid From (Source)" required>
-                            <option value="" disabled selected>Select a source...</option>
-                            <For each={destinations()}>{dest => <option value={dest.id}>{dest.name}</option>}</For>
-                        </SelectInput>
-                        <SelectInput name="destination_id" label="Paid To (Destination)" required>
-                            <option value="" disabled selected>Select a destination...</option>
-                            <For each={destinations()}>{dest => <option value={dest.id}>{dest.name}</option>}</For>
-                        </SelectInput>
-                    </div>
+        const [quantity, setQuantity] = createSignal(0);
+        const [rate, setRate] = createSignal(0);
+        const amount = createMemo(() => (quantity() * rate()).toFixed(2));
+        
+        const [addTransportation, setAddTransportation] = createSignal(false);
+        // New signals for transportation fields
+        const [vehicleType, setVehicleType] = createSignal('');
+        const [regNo, setRegNo] = createSignal('');
+        const [transportationCost, setTransportationCost] = createSignal('');
+    
+        return (
+            <div class="space-y-8">
+                <div class="mb-10">
+                    <h1 class="text-2xl font-semibold text-black">New Expense</h1>
+                    <p class="text-zinc-600 text-sm mt-1">Record a new expense for this destination.</p>
                 </div>
-
-                <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
-
-                {/* Section 1: Main Details */}
-                <div class="space-y-5">
-                    <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Expense Details</h2>
-                     <SelectInput name="entity_id" label="Expense For (Entity)" required>
-                        <option value="" disabled selected>Select an entity...</option>
-                        <For each={entities()}>{item => <option value={item.id}>{item.name}</option>}</For>
-                    </SelectInput>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <TextInput name="quantity" label="Quantity" type="number" step="0.01" onInput={e => setQuantity(parseFloat(e.currentTarget.value) || 0)} required />
-                        <TextInput name="rate" label="Rate (₹)" type="number" step="0.01" onInput={e => setRate(parseFloat(e.currentTarget.value) || 0)} required />
-                        <TextInput name="amount" label="Total Amount (₹)" value={amount()} type="number" readOnly />
-                    </div>
-                     <SelectInput name="payment_status" label="Payment Status" required>
-                        <option value="" disabled selected>Select status...</option>
-                        <For each={PaymentStatus}>{status => <option value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>}</For>
-                    </SelectInput>
-                </div>
-
-                {/* Section 2: Transportation */}
-                <div class="space-y-5">
-                    <div class="flex items-center gap-4">
-                        <input
-                            type="checkbox"
-                            id="add_transportation"
-                            name="add_transportation_cost"
-                            checked={addTransportation()}
-                            onChange={(e) => setAddTransportation(e.currentTarget.checked)}
-                            class="h-4 w-4 rounded border-gray-300 text-black focus:ring-black/50"
-                        />
-                        <label for="add_transportation" class="text-sm font-medium text-black">
-                            Add Transportation Cost
-                        </label>
-                    </div>
-
-                    <Show when={addTransportation()}>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <TextInput name="vehicle_type" label="Vehicle Type" placeholder="e.g. Truck" />
-                            <TextInput name="reg_no" label="Vehicle Reg. No." placeholder="e.g. MH 12 AB 1234" />
-                            <TextInput
-                                name="transportation_cost"
-                                label="Cost (₹)"
-                                type="number"
-                                step="0.01"
-                                placeholder="0.00"
-                            />
+    
+                <form action={createExpense} method="post" class="space-y-8">
+                    
+                    {/* Section for Route */}
+                    <div class="space-y-5">
+                        <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Route</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <SelectInput name="source_id" label="Paid From (Source)" required>
+                                <option value="" disabled selected>Select a source...</option>
+                                <For each={destinations()}>{dest => <option value={dest.id}>{dest.name}</option>}</For>
+                            </SelectInput>
+                            <SelectInput name="destination_id" label="Paid To (Destination)" required>
+                                <option value="" disabled selected>Select a destination...</option>
+                                <For each={destinations()}>{dest => <option value={dest.id}>{dest.name}</option>}</For>
+                            </SelectInput>
                         </div>
-                    </Show>
-                </div>
-
-                {/* Submission Error */}
+                    </div>
+    
+                    <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
+    
+                    {/* Section 1: Main Details */}
+                    <div class="space-y-5">
+                        <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Expense Details</h2>
+                         <SelectInput name="entity_id" label="Expense For (Entity)" required>
+                            <option value="" disabled selected>Select an entity...</option>
+                            <For each={entities()}>{item => <option value={item.id}>{item.name}</option>}</For>
+                        </SelectInput>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <TextInput name="quantity" label="Quantity" type="number" step="0.01" onInput={e => setQuantity(parseFloat(e.currentTarget.value) || 0)} required />
+                            <TextInput name="rate" label="Rate (₹)" type="number" step="0.01" onInput={e => setRate(parseFloat(e.currentTarget.value) || 0)} required />
+                            <TextInput name="amount" label="Total Amount (₹)" value={amount()} type="number" readOnly />
+                        </div>
+                         <SelectInput name="payment_status" label="Payment Status" required>
+                            <option value="" disabled selected>Select status...</option>
+                            <For each={PaymentStatus}>{status => <option value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>}</For>
+                        </SelectInput>
+                    </div>
+    
+                    <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
+    
+                    {/* Section 2: Transportation */}
+                    <div class="space-y-5">
+                        <div class="flex items-center gap-4">
+                            <input
+                                type="checkbox"
+                                id="add_transportation"
+                                name="add_transportation_cost"
+                                checked={addTransportation()}
+                                onChange={e => setAddTransportation(e.currentTarget.checked)}
+                                class="h-4 w-4 rounded border-gray-300 text-black focus:ring-black/50"
+                            />
+                            <label for="add_transportation" class="text-sm font-medium text-black">Add Transportation Cost</label>
+                        </div>
+                        
+                        <Show when={addTransportation()}>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                 <TextInput name="vehicle_type" label="Vehicle Type" placeholder="e.g. Truck" value={vehicleType()} onInput={e => setVehicleType(e.currentTarget.value)} />
+                                 <TextInput name="reg_no" label="Vehicle Reg. No." placeholder="e.g. MH 12 AB 1234" value={regNo()} onInput={e => setRegNo(e.currentTarget.value)} />
+                                 <TextInput name="transportation_cost" label="Cost (₹)" type="number" step="0.01" placeholder="0.00" value={transportationCost()} onInput={e => setTransportationCost(e.currentTarget.value)} />
+                            </div>
+                        </Show>
+                    </div>
+                                    {/* Submission Error */}
                 <Show when={submission.result?.error}>
                     <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-500 font-medium">
                         {submission.result?.error}
