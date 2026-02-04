@@ -271,14 +271,14 @@ export default function EditItemPage() {
                                     <option value="" disabled>
                                         Select unit...
                                     </option>
-                                    <option value="Kg">Kg</option>
-                                    <option value="Ton">Ton</option>
-                                    <option value="Pcs">Pcs</option>
+                                    <option value="kg">kg</option>
+                                    <option value="ton">ton</option>
+                                    <option value="pcs">pcs</option>
                                     <option value="m">m</option>
-                                    <option value="Sqm">Sqm</option>
-                                    <option value="Cft">Cft</option>
-                                    <option value="Ltr">Ltr</option>
-                                    <option value="Bag">Bag</option>
+                                    <option value="sqm">sqm</option>
+                                    <option value="cft">cft</option>
+                                    <option value="ltr">ltr</option>
+                                    <option value="bag">bag</option>
                                 </select>
                             </div>
                         </div>
