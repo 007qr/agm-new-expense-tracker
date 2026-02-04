@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, Show, Suspense } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { action, createAsync, query, redirect, useParams, useSubmission } from '@solidjs/router';
+import { action, createAsync, query, redirect, useSubmission } from '@solidjs/router';
 import { db } from '~/drizzle/client';
 import { Entity, Destination, PaymentStatus, TransportationCost, Transaction } from '~/drizzle/schema';
 import { createId } from '@paralleldrive/cuid2';
@@ -76,7 +76,7 @@ export const createExpense = action(async (formData: FormData) => {
             amount: String(amount),
         });
 
-        throw redirect(`/destination/${destinationId}/ledger`);
+        throw redirect(`/expenses`);
     } catch (error: unknown) {
         if (error instanceof Response) throw error;
         console.error(error);
@@ -101,7 +101,6 @@ export default function NewExpensePage() {
 // --- FORM CONTENT & SKELETON ---
 
 function FormContent() {
-    const params = useParams<{ id: string }>();
     const data = createAsync(() => loadFormData());
     const submission = useSubmission(createExpense);
 
@@ -122,57 +121,41 @@ function FormContent() {
             </div>
 
             <form action={createExpense} method="post" class="space-y-8">
-                <input type="hidden" name="destination_id" value={params.id} />
+                
+                {/* Section for Route */}
+                <div class="space-y-5">
+                    <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Route</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <SelectInput name="source_id" label="Paid From (Source)" required>
+                            <option value="" disabled selected>Select a source...</option>
+                            <For each={destinations()}>{dest => <option value={dest.id}>{dest.name}</option>}</For>
+                        </SelectInput>
+                        <SelectInput name="destination_id" label="Paid To (Destination)" required>
+                            <option value="" disabled selected>Select a destination...</option>
+                            <For each={destinations()}>{dest => <option value={dest.id}>{dest.name}</option>}</For>
+                        </SelectInput>
+                    </div>
+                </div>
+
+                <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
 
                 {/* Section 1: Main Details */}
                 <div class="space-y-5">
                     <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Expense Details</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <SelectInput name="entity_id" label="Expense For (Entity)" required>
-                            <option value="" disabled selected>
-                                Select an entity...
-                            </option>
-                            <For each={entities()}>{(item) => <option value={item.id}>{item.name}</option>}</For>
-                        </SelectInput>
-                        <SelectInput name="source_id" label="Paid From (Source)" required>
-                            <option value="" disabled selected>
-                                Select a source...
-                            </option>
-                            <For each={destinations()}>{(dest) => <option value={dest.id}>{dest.name}</option>}</For>
-                        </SelectInput>
-                    </div>
+                     <SelectInput name="entity_id" label="Expense For (Entity)" required>
+                        <option value="" disabled selected>Select an entity...</option>
+                        <For each={entities()}>{item => <option value={item.id}>{item.name}</option>}</For>
+                    </SelectInput>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <TextInput
-                            name="quantity"
-                            label="Quantity"
-                            type="number"
-                            step="0.01"
-                            onInput={(e) => setQuantity(parseFloat(e.currentTarget.value) || 0)}
-                            required
-                        />
-                        <TextInput
-                            name="rate"
-                            label="Rate (₹)"
-                            type="number"
-                            step="0.01"
-                            onInput={(e) => setRate(parseFloat(e.currentTarget.value) || 0)}
-                            required
-                        />
+                        <TextInput name="quantity" label="Quantity" type="number" step="0.01" onInput={e => setQuantity(parseFloat(e.currentTarget.value) || 0)} required />
+                        <TextInput name="rate" label="Rate (₹)" type="number" step="0.01" onInput={e => setRate(parseFloat(e.currentTarget.value) || 0)} required />
                         <TextInput name="amount" label="Total Amount (₹)" value={amount()} type="number" readOnly />
                     </div>
-                    <SelectInput name="payment_status" label="Payment Status" required>
-                        <option value="" disabled selected>
-                            Select status...
-                        </option>
-                        <For each={PaymentStatus}>
-                            {(status) => (
-                                <option value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>
-                            )}
-                        </For>
+                     <SelectInput name="payment_status" label="Payment Status" required>
+                        <option value="" disabled selected>Select status...</option>
+                        <For each={PaymentStatus}>{status => <option value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>}</For>
                     </SelectInput>
                 </div>
-
-                <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
 
                 {/* Section 2: Transportation */}
                 <div class="space-y-5">
