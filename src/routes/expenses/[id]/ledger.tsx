@@ -1,9 +1,9 @@
 import { action, createAsync, query, redirect, useLocation, useParams, useSubmission } from '@solidjs/router';
 import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { createEffect, createSignal, For, Show, Suspense, createResource } from 'solid-js';
+import { createSignal, For, Show, Suspense, createResource } from 'solid-js';
 import { db } from '~/drizzle/client';
-import { Destination, Entity, Transaction, TransportationCost, EntityVariant } from '~/drizzle/schema';
+import { Destination, Entity, Transaction, TransportationCost } from '~/drizzle/schema';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 import { loadTotalAmount } from './totalAmount';
 
@@ -85,7 +85,7 @@ export default function ExpenseLedgerPage() {
     const [triggerFetch, setTriggerFetch] = createSignal(false);
     const [totalAmount] = createResource(
         () => (triggerFetch() ? params.id : null),
-        (id) => loadTotalAmount(id)
+        (id) => loadTotalAmount(id),
     );
 
     return (
@@ -103,7 +103,10 @@ export default function ExpenseLedgerPage() {
                         when={showTotal()}
                         fallback={
                             <button
-                                onClick={() => setTriggerFetch(true)}
+                                onClick={() => {
+                                    setShowTotal(true);
+                                    setTriggerFetch(true);
+                                }}
                                 class="text-blue-600 hover:underline"
                                 disabled={totalAmount.loading}
                             >
