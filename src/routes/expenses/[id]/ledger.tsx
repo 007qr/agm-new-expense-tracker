@@ -1,10 +1,11 @@
-import { action, createAsync, query, redirect, useLocation, useParams, useSubmission } from '@solidjs/router';
+import { action, createAsync, query, redirect, useLocation, useParams, useSubmission, createResource } from '@solidjs/router';
 import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { createEffect, createSignal, For, Show, Suspense } from 'solid-js';
 import { db } from '~/drizzle/client';
 import { Destination, Entity, Transaction, TransportationCost, EntityVariant } from '~/drizzle/schema';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
+import { loadTotalAmount } from './totalAmount';
 
 export const loadTransactions = query(async (dest: string, entity: string, limit: number, offset: number) => {
     'use server';
@@ -43,14 +44,12 @@ export const loadTransactions = query(async (dest: string, entity: string, limit
         .offset(offset);
 
     const totalCount = await db.select({ total: sql<number>`COUNT(*)` }).from(Transaction).where(filters).then(rows => rows[0].total);
-    const totalAmount = await db.select({ total: sql<number>`SUM(${Transaction.amount})` }).from(Transaction).where(filters).then(rows => rows[0].total);
     const destination = await db.select({ name: Destination.name }).from(Destination).where(eq(Destination.id, dest)).then(rows => rows[0]);
 
     return {
         transactions,
         destination: destination?.name ?? 'Unknown',
         totalCount,
-        totalAmount,
     };
 }, 'expense-transactions-by-destination');
 
@@ -71,6 +70,13 @@ export default function ExpenseLedgerPage() {
     const totalCount = () => data()?.totalCount ?? 0;
     const deletion = useSubmission(deleteTransaction);
 
+    const [showTotal, setShowTotal] = createSignal(false);
+    const [triggerFetch, setTriggerFetch] = createSignal(false);
+    const [totalAmount] = createResource(
+        () => (triggerFetch() ? { dest: params.id, entity: entityFilter() } : null),
+        ({ dest, entity }) => loadTotalAmount(dest, entity)
+    );
+
     return (
         <div class="w-full mx-auto px-4 py-12">
             <div class="mb-8">
@@ -81,6 +87,7 @@ export default function ExpenseLedgerPage() {
             <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xl shadow-black/5">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
+                        {/* ... table head remains the same */}
                         <thead>
                             <tr class="border-b border-zinc-200">
                                 <th class="py-5 px-4 text-xs font-bold uppercase tracking-wider text-zinc-800">Date</th>
@@ -128,13 +135,31 @@ export default function ExpenseLedgerPage() {
                         <tfoot>
                             <tr class="border-t border-zinc-300">
                                 <td colspan="5" class="py-4 px-4 text-right text-sm font-bold text-black">Total Amount</td>
-                                <td class="py-4 px-4 text-right text-sm font-bold text-black">₹{Number(data()?.totalAmount ?? 0).toFixed(2)}</td>
+                                <td class="py-4 px-4 text-right text-sm font-bold text-black">
+                                    <Show
+                                        when={showTotal()}
+                                        fallback={
+                                            <button
+                                                onClick={() => { setShowTotal(true); setTriggerFetch(true); }}
+                                                class="text-blue-600 hover:underline"
+                                                disabled={totalAmount.loading}
+                                            >
+                                                {totalAmount.loading ? 'Loading...' : 'Show Total Amount'}
+                                            </button>
+                                        }
+                                    >
+                                        <span classList={{ 'blur-sm': totalAmount.loading }}>
+                                            ₹{Number(totalAmount() ?? 0).toFixed(2)}
+                                        </span>
+                                    </Show>
+                                </td>
                                 <td colspan="5"></td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
-                <Suspense fallback={<div class="p-4"><PaginationSkeleton /></div>}>
+                {/* ... pagination remains the same */}
+                 <Suspense fallback={<div class="p-4"><PaginationSkeleton /></div>}>
                     <Show when={totalCount() > 0}>
                         <div class="border-t border-zinc-200 p-4">
                             <Pagination page={page()} pageSize={pageSize()} totalCount={totalCount()} onPageChange={setPage} onPageSizeChange={p => { setPageSize(p); setPage(1); }} />
@@ -145,25 +170,3 @@ export default function ExpenseLedgerPage() {
         </div>
     );
 }
-
-const EmptyState = () => (
-    <tr><td colspan={11} class="text-center py-16 text-zinc-500">No expense transactions found.</td></tr>
-);
-
-const TableSkeleton = () => (
-    <For each={Array(5)}>{() => (
-        <tr class="animate-pulse">
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-20"></div></td>
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-32"></div></td>
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-24"></div></td>
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-16"></div></td>
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-16"></div></td>
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-20"></div></td>
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-16"></div></td>
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-24"></div></td>
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-24"></div></td>
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-20"></div></td>
-            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-16"></div></td>
-        </tr>
-    )}</For>
-);
