@@ -1,5 +1,5 @@
 import { A, createAsync, useNavigate } from '@solidjs/router';
-import { For, Suspense, createSignal, createEffect } from 'solid-js';
+import { For, Suspense, createSignal, createEffect, Show } from 'solid-js';
 import { query } from '@solidjs/router';
 import { db } from '~/drizzle/client';
 import { Destination } from '~/drizzle/schema';

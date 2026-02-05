@@ -113,11 +113,11 @@ export default function SitesPage() {
                                                     class="group cursor-pointer hover:bg-zinc-50 transition-colors duration-200"
                                                     role="link"
                                                     tabindex={0}
-                                                    onClick={() => navigate(`/destination/${site.id}`)}
+                                                    onClick={() => navigate(`/expenses/${site.id}/ledger`)}
                                                     onKeyDown={(event) => {
                                                         if (event.key === 'Enter' || event.key === ' ') {
                                                             event.preventDefault();
-                                                            navigate(`/destination/${site.id}`);
+                                                            navigate(`/expenses/${site.id}/ledger`);
                                                         }
                                                     }}
                                                 >

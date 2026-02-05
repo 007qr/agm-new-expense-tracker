@@ -1,5 +1,5 @@
 {
-  "id": "4f33c49e-872c-4fc1-8b06-d4dbc3225495",
+  "id": "cc09f82b-cac9-44ca-9625-8105079d1425",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -416,6 +416,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "payment_status",
@@ -549,6 +555,19 @@
           "tableTo": "destination",
           "columnsFrom": [
             "destination_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_source_id_destination_id_fk": {
+          "name": "transaction_source_id_destination_id_fk",
+          "tableFrom": "transaction",
+          "tableTo": "destination",
+          "columnsFrom": [
+            "source_id"
           ],
           "columnsTo": [
             "id"
@@ -868,13 +887,13 @@
         },
         "access_token_expires_at": {
           "name": "access_token_expires_at",
-          "type": "bigint",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
         "refresh_token_expires_at": {
           "name": "refresh_token_expires_at",
-          "type": "bigint",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
@@ -892,17 +911,16 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "bigint",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "(extract(epoch from now()) * 1000)::bigint"
+          "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "bigint",
+          "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
-          "default": "(extract(epoch from now()) * 1000)::bigint"
+          "notNull": true
         }
       },
       "indexes": {
@@ -955,7 +973,7 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "bigint",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true
         },
@@ -967,17 +985,16 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "bigint",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "(extract(epoch from now()) * 1000)::bigint"
+          "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "bigint",
+          "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
-          "default": "(extract(epoch from now()) * 1000)::bigint"
+          "notNull": true
         },
         "ip_address": {
           "name": "ip_address",
@@ -996,6 +1013,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "impersonated_by": {
+          "name": "impersonated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1079,26 +1102,44 @@
           "primaryKey": false,
           "notNull": false
         },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
         "role": {
           "name": "role",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'user'"
+          "notNull": false
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "bigint",
+        "banned": {
+          "name": "banned",
+          "type": "boolean",
           "primaryKey": false,
-          "notNull": true,
-          "default": "(extract(epoch from now()) * 1000)::bigint"
+          "notNull": false,
+          "default": false
         },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "bigint",
+        "ban_reason": {
+          "name": "ban_reason",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "(extract(epoch from now()) * 1000)::bigint"
+          "notNull": false
+        },
+        "ban_expires": {
+          "name": "ban_expires",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1141,23 +1182,23 @@
         },
         "expires_at": {
           "name": "expires_at",
-          "type": "bigint",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true
         },
         "created_at": {
           "name": "created_at",
-          "type": "bigint",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "(extract(epoch from now()) * 1000)::bigint"
+          "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "bigint",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "(extract(epoch from now()) * 1000)::bigint"
+          "default": "now()"
         }
       },
       "indexes": {

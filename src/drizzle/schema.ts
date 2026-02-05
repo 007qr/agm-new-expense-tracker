@@ -19,6 +19,7 @@ export const Transaction = pgTable(
         entity_id: text('entity_id').references(() => Entity.id),
         entity_variant_id: text('entity_variant_id').references(() => EntityVariant.id),
         destination_id: text('destination_id').references(() => Destination.id),
+        source_id: text('source_id').references(() => Destination.id),
         payment_status: paymentStatusEnum('status').notNull(),
         transportation_cost_id: text('transportation_cost_id').references(() => TransportationCost.id),
         quantity: numeric('quantity', { precision: 18, scale: 6 }),
@@ -169,34 +170,33 @@ export const user = pgTable('user', {
     email: text('email').notNull().unique(),
     emailVerified: boolean('email_verified').default(false).notNull(),
     image: text('image'),
-    role: text('role').notNull().default('user'),
-    createdAt: bigint('created_at', { mode: 'number' })
-        .default(sql`(extract(epoch from now()) * 1000)::bigint`)
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+        .defaultNow()
+        .$onUpdate(() => /* @__PURE__ */ new Date())
         .notNull(),
-    updatedAt: bigint('updated_at', { mode: 'number' })
-        .default(sql`(extract(epoch from now()) * 1000)::bigint`)
-        .$onUpdate(() => Date.now())
-        .notNull(),
+    role: text('role'),
+    banned: boolean('banned').default(false),
+    banReason: text('ban_reason'),
+    banExpires: timestamp('ban_expires'),
 });
 
 export const session = pgTable(
     'session',
     {
         id: text('id').primaryKey(),
-        expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
+        expiresAt: timestamp('expires_at').notNull(),
         token: text('token').notNull().unique(),
-        createdAt: bigint('created_at', { mode: 'number' })
-            .default(sql`(extract(epoch from now()) * 1000)::bigint`)
-            .notNull(),
-        updatedAt: bigint('updated_at', { mode: 'number' })
-            .default(sql`(extract(epoch from now()) * 1000)::bigint`)
-            .$onUpdate(() => Date.now())
+        createdAt: timestamp('created_at').defaultNow().notNull(),
+        updatedAt: timestamp('updated_at')
+            .$onUpdate(() => /* @__PURE__ */ new Date())
             .notNull(),
         ipAddress: text('ip_address'),
         userAgent: text('user_agent'),
         userId: text('user_id')
             .notNull()
             .references(() => user.id, { onDelete: 'cascade' }),
+        impersonatedBy: text('impersonated_by'),
     },
     (table) => [index('session_userId_idx').on(table.userId)],
 );
@@ -213,18 +213,13 @@ export const account = pgTable(
         accessToken: text('access_token'),
         refreshToken: text('refresh_token'),
         idToken: text('id_token'),
-        accessTokenExpiresAt: bigint('access_token_expires_at', { mode: 'number' }),
-        refreshTokenExpiresAt: bigint('refresh_token_expires_at', {
-            mode: 'number',
-        }),
+        accessTokenExpiresAt: timestamp('access_token_expires_at'),
+        refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
         scope: text('scope'),
         password: text('password'),
-        createdAt: bigint('created_at', { mode: 'number' })
-            .default(sql`(extract(epoch from now()) * 1000)::bigint`)
-            .notNull(),
-        updatedAt: bigint('updated_at', { mode: 'number' })
-            .default(sql`(extract(epoch from now()) * 1000)::bigint`)
-            .$onUpdate(() => Date.now())
+        createdAt: timestamp('created_at').defaultNow().notNull(),
+        updatedAt: timestamp('updated_at')
+            .$onUpdate(() => /* @__PURE__ */ new Date())
             .notNull(),
     },
     (table) => [index('account_userId_idx').on(table.userId)],
@@ -236,13 +231,11 @@ export const verification = pgTable(
         id: text('id').primaryKey(),
         identifier: text('identifier').notNull(),
         value: text('value').notNull(),
-        expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
-        createdAt: bigint('created_at', { mode: 'number' })
-            .default(sql`(extract(epoch from now()) * 1000)::bigint`)
-            .notNull(),
-        updatedAt: bigint('updated_at', { mode: 'number' })
-            .default(sql`(extract(epoch from now()) * 1000)::bigint`)
-            .$onUpdate(() => Date.now())
+        expiresAt: timestamp('expires_at').notNull(),
+        createdAt: timestamp('created_at').defaultNow().notNull(),
+        updatedAt: timestamp('updated_at')
+            .defaultNow()
+            .$onUpdate(() => /* @__PURE__ */ new Date())
             .notNull(),
     },
     (table) => [index('verification_identifier_idx').on(table.identifier)],

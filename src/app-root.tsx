@@ -16,9 +16,7 @@ const WAREHOUSE_NAV_ITEMS: SidebarItem[] = [
 
 const EXPENSE_NAV_ITEMS: SidebarItem[] = [
     { label: 'Sites', href: '/sites', icon: IconGrid },
-    { label: 'Expenses', href: '/sites', icon: IconGrid },
     { label: 'New Expense', href: '/expenses/new', icon: IconGrid },
-    { label: 'Destinations', href: '/destination', icon: IconGrid },
 ];
 
 const ADMIN_NAV_ITEMS: SidebarItem[] = [
