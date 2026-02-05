@@ -79,9 +79,30 @@ export default function ExpenseLedgerPage() {
 
     return (
         <div class="w-full mx-auto px-4 py-12">
-            <div class="mb-8">
-                <h1 class="text-3xl font-bold text-black tracking-tight">Expense Ledger</h1>
-                <p class="text-base text-zinc-600">For site: <span class="font-medium text-zinc-900">{data()?.destination}</span></p>
+            <div class="mb-8 flex justify-between items-start">
+                <div>
+                    <h1 class="text-3xl font-bold text-black tracking-tight">Expense Ledger</h1>
+                    <p class="text-base text-zinc-600">For site: <span class="font-medium text-zinc-900">{data()?.destination}</span></p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm font-bold text-black">Total Amount</p>
+                    <Show
+                        when={showTotal()}
+                        fallback={
+                            <button
+                                onClick={() => { setShowTotal(true); setTriggerFetch(true); }}
+                                class="text-blue-600 hover:underline"
+                                disabled={totalAmount.loading}
+                            >
+                                {totalAmount.loading ? 'Loading...' : 'Show Total'}
+                            </button>
+                        }
+                    >
+                        <span class="text-2xl font-bold text-black" classList={{ 'blur-sm': totalAmount.loading }}>
+                            ₹{Number(totalAmount() ?? 0).toFixed(2)}
+                        </span>
+                    </Show>
+                </div>
             </div>
 
             <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xl shadow-black/5">
@@ -132,30 +153,6 @@ export default function ExpenseLedgerPage() {
                                 </Show>
                             </Suspense>
                         </tbody>
-                        <tfoot>
-                            <tr class="border-t border-zinc-300">
-                                <td colspan="5" class="py-4 px-4 text-right text-sm font-bold text-black">Total Amount</td>
-                                <td class="py-4 px-4 text-right text-sm font-bold text-black">
-                                    <Show
-                                        when={showTotal()}
-                                        fallback={
-                                            <button
-                                                onClick={() => { setShowTotal(true); setTriggerFetch(true); }}
-                                                class="text-blue-600 hover:underline"
-                                                disabled={totalAmount.loading}
-                                            >
-                                                {totalAmount.loading ? 'Loading...' : 'Show Total Amount'}
-                                            </button>
-                                        }
-                                    >
-                                        <span classList={{ 'blur-sm': totalAmount.loading }}>
-                                            ₹{Number(totalAmount() ?? 0).toFixed(2)}
-                                        </span>
-                                    </Show>
-                                </td>
-                                <td colspan="5"></td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
                 {/* ... pagination remains the same */}
