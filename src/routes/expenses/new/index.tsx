@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Show, Suspense } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { action, createAsync, query, redirect, useSubmission } from '@solidjs/router';
 import { db } from '~/drizzle/client';
-import { Entity, Destination, PaymentStatus, TransportationCost, Transaction } from '~/drizzle/schema';
+import { Entity, Destination, PaymentStatus, TransportationCost, Transaction, EntityVariant } from '~/drizzle/schema';
 import { createId } from '@paralleldrive/cuid2';
 
 // --- QUERIES & ACTIONS ---
@@ -40,7 +40,6 @@ export const createExpense = action(async (formData: FormData) => {
     if (!destinationId || !entityId || !paymentStatus || !sourceId) return { error: 'Missing required fields.' };
     if (quantity === null || quantity <= 0) return { error: 'Quantity must be a positive number.' };
     if (rate === null || rate < 0) return { error: 'Rate must be a positive number or zero.' };
-    if (amount === null || amount < 0) return { error: 'Amount must be a positive number or zero.' };
 
     try {
         let transportationCostId: string | undefined = undefined;
@@ -117,113 +116,169 @@ function FormContent() {
     const [quantity, setQuantity] = createSignal(0);
     const [rate, setRate] = createSignal(0);
     const amount = createMemo(() => (quantity() * rate()).toFixed(2));
-    
+
     const [addTransportation, setAddTransportation] = createSignal(false);
     // New signals for transportation fields
     const [vehicleType, setVehicleType] = createSignal('');
     const [regNo, setRegNo] = createSignal('');
     const [transportationCost, setTransportationCost] = createSignal('');
-    
-        return (
-            <div class="space-y-8">
-                <div class="mb-10">
-                    <h1 class="text-2xl font-semibold text-black">New Expense</h1>
-                    <p class="text-zinc-600 text-sm mt-1">Record a new expense for this destination.</p>
+
+    return (
+        <div class="space-y-8">
+            <div class="mb-10">
+                <h1 class="text-2xl font-semibold text-black">New Expense</h1>
+                <p class="text-zinc-600 text-sm mt-1">Record a new expense for this destination.</p>
+            </div>
+
+            <form action={createExpense} method="post" class="space-y-8">
+                {/* Section for Route */}
+                <div class="space-y-5">
+                    <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Route</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <SelectInput name="source_id" label="Paid From (Source)" required>
+                            <option value="" disabled selected>
+                                Select a source...
+                            </option>
+                            <For each={destinations()}>{(dest) => <option value={dest.id}>{dest.name}</option>}</For>
+                        </SelectInput>
+                        <SelectInput name="destination_id" label="Paid To (Destination)" required>
+                            <option value="" disabled selected>
+                                Select a destination...
+                            </option>
+                            <For each={destinations()}>{(dest) => <option value={dest.id}>{dest.name}</option>}</For>
+                        </SelectInput>
+                    </div>
                 </div>
-    
-                <form action={createExpense} method="post" class="space-y-8">
-                    
-                    {/* Section for Route */}
-                    <div class="space-y-5">
-                        <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Route</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <SelectInput name="source_id" label="Paid From (Source)" required>
-                                <option value="" disabled selected>Select a source...</option>
-                                <For each={destinations()}>{dest => <option value={dest.id}>{dest.name}</option>}</For>
-                            </SelectInput>
-                            <SelectInput name="destination_id" label="Paid To (Destination)" required>
-                                <option value="" disabled selected>Select a destination...</option>
-                                <For each={destinations()}>{dest => <option value={dest.id}>{dest.name}</option>}</For>
-                            </SelectInput>
-                        </div>
-                    </div>
-    
-                    <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
-    
-                    {/* Section 1: Main Details */}
-                    <div class="space-y-5">
-                        <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Expense Details</h2>
-                         <SelectInput name="entity_id" label="Expense For (Entity)" required onChange={e => setSelectedEntityId(e.currentTarget.value)}>
-                            <option value="" disabled selected>Select an entity...</option>
-                            <For each={entities()}>{item => <option value={item.id}>{item.name}</option>}</For>
-                        </SelectInput>
-                        
-                        <div class={`transition-opacity duration-300 ${!selectedEntityId() ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-                            <SelectInput name="entity_variant_id" label="Variant (Optional)">
-                                <option value="" selected>Default / No Variant</option>
-                                <For each={availableVariants()}>
-                                    {(v) => {
-                                        const formatNumber = (value: string | null) => {
-                                            if (!value) return null;
-                                            const num = Number.parseFloat(value);
-                                            if (!Number.isFinite(num)) return value;
-                                            return num.toFixed(3).replace(/\.?0+$/, '');
-                                        };
 
-                                        const dimensionParts = [v.length, v.width, v.height]
-                                            .map(formatNumber)
-                                            .filter((part) => part);
-                                        const dimensionLabel = dimensionParts.length
-                                            ? `${dimensionParts.join('x')} ${v.dimension_unit ?? ''}`.trim()
-                                            : '';
-                                        const thicknessValue = formatNumber(v.thickness);
-                                        const thicknessLabel = thicknessValue
-                                            ? `Thickness: ${thicknessValue} ${v.thickness_unit ?? ''}`.trim()
-                                            : '';
-                                        const label = [dimensionLabel, thicknessLabel].filter(Boolean).join(' · ');
+                <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
 
-                                        return <option value={v.id}>{label || 'Standard'}</option>;
-                                    }}
-                                </For>
-                            </SelectInput>
-                        </div>
+                {/* Section 1: Main Details */}
+                <div class="space-y-5">
+                    <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Expense Details</h2>
+                    <SelectInput
+                        name="entity_id"
+                        label="Expense For (Entity)"
+                        required
+                        onChange={(e) => setSelectedEntityId(e.currentTarget.value)}
+                    >
+                        <option value="" disabled selected>
+                            Select an entity...
+                        </option>
+                        <For each={entities()}>{(item) => <option value={item.id}>{item.name}</option>}</For>
+                    </SelectInput>
 
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <TextInput name="quantity" label="Quantity" type="number" step="0.01" onInput={e => setQuantity(parseFloat(e.currentTarget.value) || 0)} required />
-                            <TextInput name="rate" label="Rate (₹)" type="number" step="0.01" onInput={e => setRate(parseFloat(e.currentTarget.value) || 0)} required />
-                            <TextInput name="amount" label="Total Amount (₹)" value={amount()} type="number" readOnly />
-                        </div>
-                         <SelectInput name="payment_status" label="Payment Status" required>
-                            <option value="" disabled selected>Select status...</option>
-                            <For each={PaymentStatus}>{status => <option value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>}</For>
+                    <div
+                        class={`transition-opacity duration-300 ${!selectedEntityId() ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}
+                    >
+                        <SelectInput name="entity_variant_id" label="Variant (Optional)">
+                            <option value="" selected>
+                                Default / No Variant
+                            </option>
+                            <For each={availableVariants()}>
+                                {(v) => {
+                                    const formatNumber = (value: string | null) => {
+                                        if (!value) return null;
+                                        const num = Number.parseFloat(value);
+                                        if (!Number.isFinite(num)) return value;
+                                        return num.toFixed(3).replace(/\.?0+$/, '');
+                                    };
+
+                                    const dimensionParts = [v.length, v.width, v.height]
+                                        .map(formatNumber)
+                                        .filter((part) => part);
+                                    const dimensionLabel = dimensionParts.length
+                                        ? `${dimensionParts.join('x')} ${v.dimension_unit ?? ''}`.trim()
+                                        : '';
+                                    const thicknessValue = formatNumber(v.thickness);
+                                    const thicknessLabel = thicknessValue
+                                        ? `Thickness: ${thicknessValue} ${v.thickness_unit ?? ''}`.trim()
+                                        : '';
+                                    const label = [dimensionLabel, thicknessLabel].filter(Boolean).join(' · ');
+
+                                    return <option value={v.id}>{label || 'Standard'}</option>;
+                                }}
+                            </For>
                         </SelectInput>
                     </div>
-    
-                    <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
-    
-                    {/* Section 2: Transportation */}
-                    <div class="space-y-5">
-                        <div class="flex items-center gap-4">
-                            <input
-                                type="checkbox"
-                                id="add_transportation"
-                                name="add_transportation_cost"
-                                checked={addTransportation()}
-                                onChange={e => setAddTransportation(e.currentTarget.checked)}
-                                class="h-4 w-4 rounded border-gray-300 text-black focus:ring-black/50"
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <TextInput
+                            name="quantity"
+                            label="Quantity"
+                            type="number"
+                            step="0.01"
+                            onInput={(e) => setQuantity(parseFloat(e.currentTarget.value) || 0)}
+                            required
+                        />
+                        <TextInput
+                            name="rate"
+                            label="Rate (₹)"
+                            type="number"
+                            step="0.01"
+                            onInput={(e) => setRate(parseFloat(e.currentTarget.value) || 0)}
+                            required
+                        />
+                        <TextInput name="amount" label="Total Amount (₹)" value={amount()} type="number" readOnly />
+                    </div>
+                    <SelectInput name="payment_status" label="Payment Status" required>
+                        <option value="" disabled selected>
+                            Select status...
+                        </option>
+                        <For each={PaymentStatus}>
+                            {(status) => (
+                                <option value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>
+                            )}
+                        </For>
+                    </SelectInput>
+                </div>
+
+                <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
+
+                {/* Section 2: Transportation */}
+                <div class="space-y-5">
+                    <div class="flex items-center gap-4">
+                        <input
+                            type="checkbox"
+                            id="add_transportation"
+                            name="add_transportation_cost"
+                            checked={addTransportation()}
+                            onChange={(e) => setAddTransportation(e.currentTarget.checked)}
+                            class="h-4 w-4 rounded border-gray-300 text-black focus:ring-black/50"
+                        />
+                        <label for="add_transportation" class="text-sm font-medium text-black">
+                            Add Transportation Cost
+                        </label>
+                    </div>
+
+                    <Show when={addTransportation()}>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <TextInput
+                                name="vehicle_type"
+                                label="Vehicle Type"
+                                placeholder="e.g. Truck"
+                                value={vehicleType()}
+                                onInput={(e) => setVehicleType(e.currentTarget.value)}
                             />
-                            <label for="add_transportation" class="text-sm font-medium text-black">Add Transportation Cost</label>
+                            <TextInput
+                                name="reg_no"
+                                label="Vehicle Reg. No."
+                                placeholder="e.g. MH 12 AB 1234"
+                                value={regNo()}
+                                onInput={(e) => setRegNo(e.currentTarget.value)}
+                            />
+                            <TextInput
+                                name="transportation_cost"
+                                label="Cost (₹)"
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={transportationCost()}
+                                onInput={(e) => setTransportationCost(e.currentTarget.value)}
+                            />
                         </div>
-                        
-                        <Show when={addTransportation()}>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                 <TextInput name="vehicle_type" label="Vehicle Type" placeholder="e.g. Truck" value={vehicleType()} onInput={e => setVehicleType(e.currentTarget.value)} />
-                                 <TextInput name="reg_no" label="Vehicle Reg. No." placeholder="e.g. MH 12 AB 1234" value={regNo()} onInput={e => setRegNo(e.currentTarget.value)} />
-                                 <TextInput name="transportation_cost" label="Cost (₹)" type="number" step="0.01" placeholder="0.00" value={transportationCost()} onInput={e => setTransportationCost(e.currentTarget.value)} />
-                            </div>
-                        </Show>
-                    </div>
-                                    {/* Submission Error */}
+                    </Show>
+                </div>
+                {/* Submission Error */}
                 <Show when={submission.result?.error}>
                     <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-500 font-medium">
                         {submission.result?.error}
