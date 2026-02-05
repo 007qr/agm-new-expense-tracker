@@ -11,13 +11,19 @@ const WAREHOUSE_NAV_ITEMS: SidebarItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: IconGrid },
     { label: 'Items', href: '/items', icon: IconGrid },
     { label: 'New transaction', href: '/new-transaction', icon: IconGrid },
-    { label: 'Destinations', href: '/destination', icon: IconGrid },
 ];
 
 const EXPENSE_NAV_ITEMS: SidebarItem[] = [
     { label: 'Expenses', href: '/expenses', icon: IconGrid },
     { label: 'New Expense', href: '/expenses/new', icon: IconGrid },
-    { label: 'Destinations', href: '/destination', icon: IconGrid },
+];
+
+const ADMIN_NAV_ITEMS: SidebarItem[] = [
+    { label: 'Dashboard', href: '/dashboard', icon: IconGrid },
+    { label: 'Godown Items', href: '/items', icon: IconGrid },
+    { label: 'Godown New Transaction', href: '/new-transaction', icon: IconGrid },
+    { label: 'Site Expenses', href: '/expenses', icon: IconGrid },
+    { label: 'Site New Expense', href: '/expenses/new', icon: IconGrid },
 ];
 
 export default function AppRoot(props: { children: JSX.Element }) {
@@ -30,7 +36,10 @@ export default function AppRoot(props: { children: JSX.Element }) {
 
     const navigationItems = createMemo(() => {
         const role = userRole();
-        if (role === 'admin' || role === 'warehouse-user') {
+        if (role === 'admin') {
+            return ADMIN_NAV_ITEMS;
+        }
+        if (role === 'warehouse-user') {
             return WAREHOUSE_NAV_ITEMS;
         }
         if (role === 'expense-user') {

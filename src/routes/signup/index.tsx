@@ -1,5 +1,8 @@
 import { A, action, redirect, useAction, useSubmission } from '@solidjs/router';
 import { auth } from '~/lib/auth';
+import { db } from '~/drizzle/client';
+import { user } from '~/drizzle/schema';
+import { eq } from 'drizzle-orm';
 
 export const register = action(async (formData: FormData) => {
     'use server';
@@ -20,12 +23,21 @@ export const register = action(async (formData: FormData) => {
     }
 
     try {
-        await auth.api.signUpEmail({
+        const newUserResponse = await auth.api.signUpEmail({
             body: { name, email, password },
         });
 
+        // TEMPORARY: Assign 'admin' role for testing RBAC
+        if (newUserResponse?.user?.id) {
+            await db.update(user)
+                .set({ role: 'admin' })
+                .where(eq(user.id, newUserResponse.user.id));
+        } else {
+            console.warn('Could not assign role to new user: user ID not found in signup response.');
+        }
+
         return redirect('/dashboard');
-    } catch (err: any) {
+    } catch (err: any) => {
         const msg = typeof err?.message === 'string' ? err.message : 'Signup failed. Try again.';
         return { ok: false as const, message: msg };
     }
