@@ -48,20 +48,21 @@ export const createExpense = action(async (formData: FormData) => {
             const vehicleType = getStringField('vehicle_type');
             const regNo = getStringField('reg_no');
             const transportationCostAmount = getNumericField('transportation_cost');
-            if (!vehicleType || !regNo || transportationCostAmount === null || transportationCostAmount <= 0)
-                return { error: 'Invalid transportation cost details.' };
-
-            const [tc] = await db
-                .insert(TransportationCost)
-                .values({
-                    id: 'tc_' + createId(),
-                    entity_id: entityId,
-                    vehicle_type: vehicleType,
-                    reg_no: regNo,
-                    cost: String(transportationCostAmount),
-                })
-                .returning({ id: TransportationCost.id });
-            transportationCostId = tc.id;
+            
+            // Only create a transportation cost record if a valid cost is provided
+            if (transportationCostAmount !== null && transportationCostAmount > 0) {
+                 const [tc] = await db
+                    .insert(TransportationCost)
+                    .values({
+                        id: 'tc_' + createId(),
+                        entity_id: entityId,
+                        vehicle_type: vehicleType, // Can be empty
+                        reg_no: regNo,          // Can be empty
+                        cost: String(transportationCostAmount),
+                    })
+                    .returning({ id: TransportationCost.id });
+                transportationCostId = tc.id;
+            }
         }
 
         await db.insert(Transaction).values({
@@ -71,7 +72,7 @@ export const createExpense = action(async (formData: FormData) => {
             destination_id: destinationId,
             source_id: sourceId,
             payment_status: paymentStatus,
-            transportation_cost_id: transportationCostId,
+            transportation_cost_id: transportationCostId, // Will be undefined if not created
             quantity: String(quantity),
             type: 'debit',
             rate: String(rate),
