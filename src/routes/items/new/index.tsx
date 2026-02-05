@@ -1,7 +1,7 @@
 import { Show, createSignal, For, Index } from 'solid-js';
 import { action, redirect, useSubmission } from '@solidjs/router';
 import { db } from '~/drizzle/client';
-import { EntityType, EntityVariantWarehouse, EntityWarehouse } from '~/drizzle/schema';
+import { Entity, EntityVariant, EntityType } from '~/drizzle/schema';
 
 // ... (Keep your existing types and helper functions exactly the same) ...
 type VariantInput = {
@@ -96,10 +96,10 @@ export const createItem = action(async (formData: FormData): Promise<ActionRespo
         : [];
 
     try {
-        const [item] = await db.insert(EntityWarehouse).values({ name, unit, type }).returning();
+        const [item] = await db.insert(Entity).values({ name, unit, type }).returning();
 
         if (normalizedVariants.length > 0) {
-            await db.insert(EntityVariantWarehouse).values(
+            await db.insert(EntityVariant).values(
                 normalizedVariants.map((variant) => ({
                     entity_id: item.id,
                     length: variant.length,
@@ -125,6 +125,7 @@ export const createItem = action(async (formData: FormData): Promise<ActionRespo
         return { success: false, error: 'System error. Please try again.' };
     }
 });
+
 
 export default function CreateItemPage() {
     const submission = useSubmission(createItem);
