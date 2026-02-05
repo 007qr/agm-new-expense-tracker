@@ -16,7 +16,10 @@ const WAREHOUSE_NAV_ITEMS: SidebarItem[] = [
 
 const EXPENSE_NAV_ITEMS: SidebarItem[] = [
     { label: 'Sites', href: '/sites', icon: IconGrid },
+    { label: 'Expenses', href: '/expenses', icon: IconGrid },
     { label: 'New Expense', href: '/expenses/new', icon: IconGrid },
+    { label: 'New Expense Item', href: '/expenses/items/new', icon: IconGrid },
+    { label: 'Destinations', href: '/destination', icon: IconGrid },
 ];
 
 const ADMIN_NAV_ITEMS: SidebarItem[] = [
@@ -26,6 +29,7 @@ const ADMIN_NAV_ITEMS: SidebarItem[] = [
     { label: 'Site All Sites', href: '/sites', icon: IconGrid },
     { label: 'Site Expenses', href: '/sites', icon: IconGrid },
     { label: 'Site New Expense', href: '/expenses/new', icon: IconGrid },
+    { label: 'Site New Expense Item', href: '/expenses/items/new', icon: IconGrid },
     { label: 'Destinations', href: '/destination', icon: IconGrid },
 ];
 
