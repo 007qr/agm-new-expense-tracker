@@ -11,19 +11,24 @@ const WAREHOUSE_NAV_ITEMS: SidebarItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: IconGrid },
     { label: 'Items', href: '/items', icon: IconGrid },
     { label: 'New transaction', href: '/new-transaction', icon: IconGrid },
+    { label: 'Destinations', href: '/destination', icon: IconGrid },
 ];
 
 const EXPENSE_NAV_ITEMS: SidebarItem[] = [
+    { label: 'Sites', href: '/sites', icon: IconGrid },
     { label: 'Expenses', href: '/expenses', icon: IconGrid },
     { label: 'New Expense', href: '/expenses/new', icon: IconGrid },
+    { label: 'Destinations', href: '/destination', icon: IconGrid },
 ];
 
 const ADMIN_NAV_ITEMS: SidebarItem[] = [
-    { label: 'Dashboard', href: '/dashboard', icon: IconGrid },
+    { label: 'Godown Dashboard', href: '/dashboard', icon: IconGrid },
     { label: 'Godown Items', href: '/items', icon: IconGrid },
     { label: 'Godown New Transaction', href: '/new-transaction', icon: IconGrid },
+    { label: 'Site All Sites', href: '/sites', icon: IconGrid },
     { label: 'Site Expenses', href: '/expenses', icon: IconGrid },
     { label: 'Site New Expense', href: '/expenses/new', icon: IconGrid },
+    { label: 'Destinations', href: '/destination', icon: IconGrid },
 ];
 
 export default function AppRoot(props: { children: JSX.Element }) {

@@ -11,7 +11,7 @@ const WAREHOUSE_USER_ROLE = 'warehouse-user';
 const EXPENSE_USER_ROLE = 'expense-user';
 
 // New Route Groupings
-const EXPENSE_SPECIFIC_ROUTES = ['/expenses']; // includes /expenses/[id], /expenses/[id]/new
+const EXPENSE_SPECIFIC_ROUTES = ['/expenses', '/sites']; // includes /expenses/[id], /expenses/[id]/new
 const WAREHOUSE_SPECIFIC_ROUTES = ['/dashboard', '/items']; // includes /items/[id], /items/[id]/edit, /items/new
 const DESTINATION_COMMON_ROUTES = ['/destination']; // includes /destination/[id], /destination/[id]/ledger, etc.
 
