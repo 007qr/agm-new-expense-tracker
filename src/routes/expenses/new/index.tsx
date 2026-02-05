@@ -9,11 +9,12 @@ import { createId } from '@paralleldrive/cuid2';
 
 export const loadFormData = query(async () => {
     'use server';
-    const [entities, destinations] = await Promise.all([
+    const [entities, destinations, variants] = await Promise.all([
         db.select({ id: Entity.id, name: Entity.name, unit: Entity.unit }).from(Entity),
         db.select({ id: Destination.id, name: Destination.name }).from(Destination),
+        db.select().from(EntityVariant),
     ]);
-    return { entities, destinations };
+    return { entities, destinations, variants };
 }, 'expense-form-data');
 
 export const createExpense = action(async (formData: FormData) => {
@@ -28,6 +29,7 @@ export const createExpense = action(async (formData: FormData) => {
 
     const destinationId = getStringField('destination_id');
     const entityId = getStringField('entity_id');
+    const entityVariantId = getStringField('entity_variant_id');
     const quantity = getNumericField('quantity');
     const rate = getNumericField('rate');
     const amount = getNumericField('amount');
@@ -45,9 +47,9 @@ export const createExpense = action(async (formData: FormData) => {
 
         if (addTransportationCost) {
             const vehicleType = getStringField('vehicle_type');
-    const regNo = getStringField('reg_no');
-    const transportationCostAmount = getNumericField('transportation_cost');
-            if (!vehicleType || !regNo || cost === null || cost <= 0)
+            const regNo = getStringField('reg_no');
+            const transportationCostAmount = getNumericField('transportation_cost');
+            if (!vehicleType || !regNo || transportationCostAmount === null || transportationCostAmount <= 0)
                 return { error: 'Invalid transportation cost details.' };
 
             const [tc] = await db
@@ -57,7 +59,7 @@ export const createExpense = action(async (formData: FormData) => {
                     entity_id: entityId,
                     vehicle_type: vehicleType,
                     reg_no: regNo,
-                    cost: String(cost),
+                    cost: String(transportationCostAmount),
                 })
                 .returning({ id: TransportationCost.id });
             transportationCostId = tc.id;
@@ -66,6 +68,7 @@ export const createExpense = action(async (formData: FormData) => {
         await db.insert(Transaction).values({
             id: 'tran_' + createId(),
             entity_id: entityId,
+            entity_variant_id: entityVariantId || null,
             destination_id: destinationId,
             source_id: sourceId,
             payment_status: paymentStatus,
@@ -106,16 +109,20 @@ function FormContent() {
 
     const entities = () => data()?.entities ?? [];
     const destinations = () => data()?.destinations ?? [];
+    const variants = () => data()?.variants ?? [];
 
-        const [quantity, setQuantity] = createSignal(0);
-        const [rate, setRate] = createSignal(0);
-        const amount = createMemo(() => (quantity() * rate()).toFixed(2));
-        
-        const [addTransportation, setAddTransportation] = createSignal(false);
-        // New signals for transportation fields
-        const [vehicleType, setVehicleType] = createSignal('');
-        const [regNo, setRegNo] = createSignal('');
-        const [transportationCost, setTransportationCost] = createSignal('');
+    const [selectedEntityId, setSelectedEntityId] = createSignal('');
+    const availableVariants = createMemo(() => variants().filter((v) => v.entity_id === selectedEntityId()));
+
+    const [quantity, setQuantity] = createSignal(0);
+    const [rate, setRate] = createSignal(0);
+    const amount = createMemo(() => (quantity() * rate()).toFixed(2));
+    
+    const [addTransportation, setAddTransportation] = createSignal(false);
+    // New signals for transportation fields
+    const [vehicleType, setVehicleType] = createSignal('');
+    const [regNo, setRegNo] = createSignal('');
+    const [transportationCost, setTransportationCost] = createSignal('');
     
         return (
             <div class="space-y-8">
@@ -146,10 +153,41 @@ function FormContent() {
                     {/* Section 1: Main Details */}
                     <div class="space-y-5">
                         <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Expense Details</h2>
-                         <SelectInput name="entity_id" label="Expense For (Entity)" required>
+                         <SelectInput name="entity_id" label="Expense For (Entity)" required onChange={e => setSelectedEntityId(e.currentTarget.value)}>
                             <option value="" disabled selected>Select an entity...</option>
                             <For each={entities()}>{item => <option value={item.id}>{item.name}</option>}</For>
                         </SelectInput>
+                        
+                        <div class={`transition-opacity duration-300 ${!selectedEntityId() ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                            <SelectInput name="entity_variant_id" label="Variant (Optional)">
+                                <option value="" selected>Default / No Variant</option>
+                                <For each={availableVariants()}>
+                                    {(v) => {
+                                        const formatNumber = (value: string | null) => {
+                                            if (!value) return null;
+                                            const num = Number.parseFloat(value);
+                                            if (!Number.isFinite(num)) return value;
+                                            return num.toFixed(3).replace(/\.?0+$/, '');
+                                        };
+
+                                        const dimensionParts = [v.length, v.width, v.height]
+                                            .map(formatNumber)
+                                            .filter((part) => part);
+                                        const dimensionLabel = dimensionParts.length
+                                            ? `${dimensionParts.join('x')} ${v.dimension_unit ?? ''}`.trim()
+                                            : '';
+                                        const thicknessValue = formatNumber(v.thickness);
+                                        const thicknessLabel = thicknessValue
+                                            ? `Thickness: ${thicknessValue} ${v.thickness_unit ?? ''}`.trim()
+                                            : '';
+                                        const label = [dimensionLabel, thicknessLabel].filter(Boolean).join(' · ');
+
+                                        return <option value={v.id}>{label || 'Standard'}</option>;
+                                    }}
+                                </For>
+                            </SelectInput>
+                        </div>
+
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <TextInput name="quantity" label="Quantity" type="number" step="0.01" onInput={e => setQuantity(parseFloat(e.currentTarget.value) || 0)} required />
                             <TextInput name="rate" label="Rate (₹)" type="number" step="0.01" onInput={e => setRate(parseFloat(e.currentTarget.value) || 0)} required />
