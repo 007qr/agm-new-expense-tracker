@@ -1,7 +1,7 @@
-import { action, createAsync, query, redirect, useLocation, useParams, useSubmission, createResource } from '@solidjs/router';
+import { action, createAsync, query, redirect, useLocation, useParams, useSubmission } from '@solidjs/router';
 import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { createEffect, createSignal, For, Show, Suspense } from 'solid-js';
+import { createEffect, createSignal, For, Show, Suspense, createResource } from 'solid-js';
 import { db } from '~/drizzle/client';
 import { Destination, Entity, Transaction, TransportationCost, EntityVariant } from '~/drizzle/schema';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
