@@ -170,3 +170,25 @@ export default function ExpenseLedgerPage() {
         </div>
     );
 }
+
+const EmptyState = () => (
+    <tr><td colspan={11} class="text-center py-16 text-zinc-500">No expense transactions found.</td></tr>
+);
+
+const TableSkeleton = () => (
+    <For each={Array(5)}>{() => (
+        <tr class="animate-pulse">
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-20"></div></td>
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-32"></div></td>
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-24"></div></td>
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-16"></div></td>
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-16"></div></td>
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-20"></div></td>
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-16"></div></td>
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-24"></div></td>
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-24"></div></td>
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-20"></div></td>
+            <td class="py-5 px-4"><div class="h-4 bg-zinc-200 rounded w-16"></div></td>
+        </tr>
+    )}</For>
+);
