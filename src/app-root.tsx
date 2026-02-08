@@ -8,29 +8,24 @@ const PUBLIC_ROUTES = new Set(['/login', '/signup']);
 
 // Define role-specific navigation items
 const WAREHOUSE_NAV_ITEMS: SidebarItem[] = [
-    { label: 'Dashboard', href: '/dashboard', icon: IconGrid },
+    { label: 'All godown', href: '/dashboard', icon: IconGrid },
     { label: 'Items', href: '/items', icon: IconGrid },
     { label: 'New transaction', href: '/new-transaction', icon: IconGrid },
-    { label: 'Destinations', href: '/destination', icon: IconGrid },
 ];
 
 const EXPENSE_NAV_ITEMS: SidebarItem[] = [
-    { label: 'Sites', href: '/sites', icon: IconGrid },
-    { label: 'Expenses', href: '/expenses', icon: IconGrid },
-    { label: 'New Expense', href: '/expenses/new', icon: IconGrid },
-    { label: 'New Expense Item', href: '/expenses/items/new', icon: IconGrid },
-    { label: 'Destinations', href: '/destination', icon: IconGrid },
+    { label: 'All sites', href: '/sites', icon: IconGrid },
+    { label: 'Site items', href: '/expenses/items', icon: IconGrid },
+    { label: 'Expenses', href: '/expenses/new', icon: IconGrid },
 ];
 
 const ADMIN_NAV_ITEMS: SidebarItem[] = [
-    { label: 'Godown Dashboard', href: '/dashboard', icon: IconGrid },
+    { label: 'All dodown', href: '/dashboard', icon: IconGrid },
     { label: 'Godown Items', href: '/items', icon: IconGrid },
     { label: 'Godown New Transaction', href: '/new-transaction', icon: IconGrid },
-    { label: 'Site All Sites', href: '/sites', icon: IconGrid },
-    { label: 'Site Expenses', href: '/sites', icon: IconGrid },
-    { label: 'Site New Expense', href: '/expenses/new', icon: IconGrid },
-    { label: 'Site New Expense Item', href: '/expenses/items/new', icon: IconGrid },
-    { label: 'Destinations', href: '/destination', icon: IconGrid },
+    { label: 'All Site', href: '/sites', icon: IconGrid },
+    { label: 'New Expense', href: '/expenses/new', icon: IconGrid },
+    { label: 'Site items', href: '/expenses/items/new', icon: IconGrid },
 ];
 
 export default function AppRoot(props: { children: JSX.Element }) {
@@ -62,8 +57,8 @@ export default function AppRoot(props: { children: JSX.Element }) {
             </Show>
 
             <Suspense fallback={<div class="p-8">Loading content...</div>}>
-                <main class="flex-1 overflow-y-auto p-8">
-                    <div class="mx-auto max-w-7xl">{props.children}</div>
+                <main class="flex-1 overflow-y-auto p-2">
+                    <div class="mx-auto px-25">{props.children}</div>
                 </main>
             </Suspense>
         </div>

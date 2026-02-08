@@ -32,14 +32,16 @@ export const createExpense = action(async (formData: FormData) => {
     const entityVariantId = getStringField('entity_variant_id');
     const quantity = getNumericField('quantity');
     const rate = getNumericField('rate');
-    const amount = getNumericField('amount');
     const paymentStatus = getStringField('payment_status') as (typeof PaymentStatus)[number];
     const sourceId = getStringField('source_id');
+    const dateStr = getStringField('date');
     const addTransportationCost = getBooleanField('add_transportation_cost');
 
     if (!destinationId || !entityId || !paymentStatus || !sourceId) return { error: 'Missing required fields.' };
     if (quantity === null || quantity <= 0) return { error: 'Quantity must be a positive number.' };
     if (rate === null || rate < 0) return { error: 'Rate must be a positive number or zero.' };
+
+    const amount = quantity * rate;
 
     try {
         let transportationCostId: string | undefined = undefined;
@@ -48,7 +50,7 @@ export const createExpense = action(async (formData: FormData) => {
             const vehicleType = getStringField('vehicle_type');
             const regNo = getStringField('reg_no');
             const transportationCostAmount = getNumericField('transportation_cost');
-            
+
             // Only create a transportation cost record if a valid cost is provided
             if (transportationCostAmount !== null && transportationCostAmount > 0) {
                  const [tc] = await db
@@ -77,6 +79,7 @@ export const createExpense = action(async (formData: FormData) => {
             type: 'debit',
             rate: String(rate),
             amount: String(amount),
+            ...(dateStr ? { created_at: new Date(dateStr) } : {}),
         });
 
         throw redirect(`/expenses`);
@@ -118,8 +121,9 @@ function FormContent() {
     const [rate, setRate] = createSignal(0);
     const amount = createMemo(() => (quantity() * rate()).toFixed(2));
 
+    const today = () => new Date().toISOString().split('T')[0];
+
     const [addTransportation, setAddTransportation] = createSignal(false);
-    // New signals for transportation fields
     const [vehicleType, setVehicleType] = createSignal('');
     const [regNo, setRegNo] = createSignal('');
     const [transportationCost, setTransportationCost] = createSignal('');
@@ -127,7 +131,7 @@ function FormContent() {
     return (
         <div class="space-y-8">
             <div class="mb-10">
-                <h1 class="text-2xl font-semibold text-black">New Expense</h1>
+                <h1 class="text-2xl font-semibold text-black">Expenses</h1>
                 <p class="text-zinc-600 text-sm mt-1">Record a new expense for this destination.</p>
             </div>
 
@@ -156,50 +160,52 @@ function FormContent() {
                 {/* Section 1: Main Details */}
                 <div class="space-y-5">
                     <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Expense Details</h2>
-                    <SelectInput
-                        name="entity_id"
-                        label="Expense For (Entity)"
-                        required
-                        onChange={(e) => setSelectedEntityId(e.currentTarget.value)}
-                    >
-                        <option value="" disabled selected>
-                            Select an entity...
-                        </option>
-                        <For each={entities()}>{(item) => <option value={item.id}>{item.name}</option>}</For>
-                    </SelectInput>
-
-                    <div
-                        class={`transition-opacity duration-300 ${!selectedEntityId() ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}
-                    >
-                        <SelectInput name="entity_variant_id" label="Variant (Optional)">
-                            <option value="" selected>
-                                Default / No Variant
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <SelectInput
+                            name="entity_id"
+                            label="Expense For (Entity)"
+                            required
+                            onChange={(e) => setSelectedEntityId(e.currentTarget.value)}
+                        >
+                            <option value="" disabled selected>
+                                Select an entity...
                             </option>
-                            <For each={availableVariants()}>
-                                {(v) => {
-                                    const formatNumber = (value: string | null) => {
-                                        if (!value) return null;
-                                        const num = Number.parseFloat(value);
-                                        if (!Number.isFinite(num)) return value;
-                                        return num.toFixed(3).replace(/\.?0+$/, '');
-                                    };
-
-                                    const dimensionParts = [v.length, v.width, v.height]
-                                        .map(formatNumber)
-                                        .filter((part) => part);
-                                    const dimensionLabel = dimensionParts.length
-                                        ? `${dimensionParts.join('x')} ${v.dimension_unit ?? ''}`.trim()
-                                        : '';
-                                    const thicknessValue = formatNumber(v.thickness);
-                                    const thicknessLabel = thicknessValue
-                                        ? `Thickness: ${thicknessValue} ${v.thickness_unit ?? ''}`.trim()
-                                        : '';
-                                    const label = [dimensionLabel, thicknessLabel].filter(Boolean).join(' · ');
-
-                                    return <option value={v.id}>{label || 'Standard'}</option>;
-                                }}
-                            </For>
+                            <For each={entities()}>{(item) => <option value={item.id}>{item.name}</option>}</For>
                         </SelectInput>
+
+                        <div
+                            class={`transition-opacity duration-300 ${!selectedEntityId() ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}
+                        >
+                            <SelectInput name="entity_variant_id" label="Variant (Optional)">
+                                <option value="" selected>
+                                    Default / No Variant
+                                </option>
+                                <For each={availableVariants()}>
+                                    {(v) => {
+                                        const formatNumber = (value: string | null) => {
+                                            if (!value) return null;
+                                            const num = Number.parseFloat(value);
+                                            if (!Number.isFinite(num)) return value;
+                                            return num.toFixed(3).replace(/\.?0+$/, '');
+                                        };
+
+                                        const dimensionParts = [v.length, v.width, v.height]
+                                            .map(formatNumber)
+                                            .filter((part) => part);
+                                        const dimensionLabel = dimensionParts.length
+                                            ? `${dimensionParts.join('x')} ${v.dimension_unit ?? ''}`.trim()
+                                            : '';
+                                        const thicknessValue = formatNumber(v.thickness);
+                                        const thicknessLabel = thicknessValue
+                                            ? `Thickness: ${thicknessValue} ${v.thickness_unit ?? ''}`.trim()
+                                            : '';
+                                        const label = [dimensionLabel, thicknessLabel].filter(Boolean).join(' · ');
+
+                                        return <option value={v.id}>{label || 'Standard'}</option>;
+                                    }}
+                                </For>
+                            </SelectInput>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -221,16 +227,20 @@ function FormContent() {
                         />
                         <TextInput name="amount" label="Total Amount (₹)" value={amount()} type="number" readOnly />
                     </div>
-                    <SelectInput name="payment_status" label="Payment Status" required>
-                        <option value="" disabled selected>
-                            Select status...
-                        </option>
-                        <For each={PaymentStatus}>
-                            {(status) => (
-                                <option value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>
-                            )}
-                        </For>
-                    </SelectInput>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <TextInput name="date" label="Date" type="date" value={today()} required />
+                        <SelectInput name="payment_status" label="Payment Status" required>
+                            <option value="" disabled selected>
+                                Select status...
+                            </option>
+                            <For each={PaymentStatus}>
+                                {(status) => (
+                                    <option value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</option>
+                                )}
+                            </For>
+                        </SelectInput>
+                    </div>
                 </div>
 
                 <div class="w-full h-px bg-zinc-200 border-t border-dashed" />

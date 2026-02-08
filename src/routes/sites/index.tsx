@@ -1,4 +1,4 @@
-import { A, createAsync, useNavigate } from '@solidjs/router';
+import { createAsync, revalidate, useNavigate, useSubmission } from '@solidjs/router';
 import { For, Suspense, createSignal, createEffect, Show } from 'solid-js';
 import { query } from '@solidjs/router';
 import { db } from '~/drizzle/client';
@@ -6,6 +6,8 @@ import { Destination } from '~/drizzle/schema';
 import { asc, like, or, sql } from 'drizzle-orm';
 import { debounce } from '~/utils/debounce';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
+import Sheet from '~/components/Sheet';
+import { createDestination } from '~/routes/create-destination';
 
 export const loadSites = query(async (q: string, limit: number, offset: number) => {
     'use server';
@@ -44,6 +46,9 @@ export default function SitesPage() {
 
     const sites = createAsync(() => loadSites(q(), pageSize(), (page() - 1) * pageSize()));
     const [totalCount, setTotalCount] = createSignal(0);
+    const [sheetOpen, setSheetOpen] = createSignal(false);
+    const submission = useSubmission(createDestination);
+    const [isWarehouse, setIsWarehouse] = createSignal(false);
 
     createEffect(() => {
         const result = sites();
@@ -56,6 +61,14 @@ export default function SitesPage() {
         const totalPages = Math.max(1, Math.ceil(totalCount() / pageSize()));
         if (page() > totalPages) {
             setPage(totalPages);
+        }
+    });
+
+    createEffect(() => {
+        if (submission.result?.success) {
+            setSheetOpen(false);
+            setIsWarehouse(false);
+            revalidate('all-destinations-with-search');
         }
     });
 
@@ -89,9 +102,12 @@ export default function SitesPage() {
                         placeholder="Search sites..."
                     />
                 </div>
-                <A href="/create-destination" class="bg-secondary text-brand px-4 py-2 rounded-md md:ml-4">
+                <button
+                    onClick={() => setSheetOpen(true)}
+                    class="bg-secondary text-brand px-4 py-2 rounded-md md:ml-4"
+                >
                     Add New Site
-                </A>
+                </button>
             </div>
             <div class="flex w-full flex-col gap-8">
                 <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xl shadow-black/5">
@@ -154,6 +170,68 @@ export default function SitesPage() {
                     </div>
                 </Suspense>
             </div>
+
+            <Sheet open={sheetOpen()} onClose={() => setSheetOpen(false)} title="New Site / Godown">
+                <form action={createDestination} method="post" class="space-y-4">
+                    <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
+                        <label
+                            for="name"
+                            class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500 select-none group-focus-within:text-zinc-700 transition-colors"
+                        >
+                            Destination Name
+                        </label>
+                        <input
+                            id="name"
+                            name="name"
+                            type="text"
+                            required
+                            autofocus={true}
+                            placeholder="e.g. Pune Central Hub"
+                            class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none placeholder:text-zinc-400 transition-colors"
+                        />
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between px-3.5 py-3 bg-white border border-zinc-200 rounded-xl cursor-pointer hover:border-zinc-300 hover:bg-zinc-50 transition-all group"
+                        onClick={() => setIsWarehouse(!isWarehouse())}
+                    >
+                        <span class="text-sm font-medium text-zinc-700 group-hover:text-black transition-colors">
+                            Is this a godown?
+                        </span>
+                        <input type="checkbox" name="is_warehouse" checked={isWarehouse()} class="hidden" />
+                        <div
+                            class="relative w-9 h-5 rounded-full transition-colors duration-200"
+                            classList={{
+                                'bg-black': isWarehouse(),
+                                'bg-zinc-300': !isWarehouse(),
+                            }}
+                        >
+                            <div
+                                class="absolute top-1 left-1 w-3 h-3 rounded-full shadow-sm transform transition-transform duration-200"
+                                classList={{
+                                    'translate-x-4 bg-white': isWarehouse(),
+                                    'translate-x-0 bg-zinc-600': !isWarehouse(),
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    <Show when={submission.result?.success === false}>
+                        <div class="px-3 py-2 bg-red-500/10 border border-red-500/10 rounded-lg flex items-center gap-2.5">
+                            <div class="w-1 h-1 bg-red-500 rounded-full" />
+                            <p class="text-[11px] text-red-400 font-medium leading-none">{submission.result?.error}</p>
+                        </div>
+                    </Show>
+
+                    <button
+                        type="submit"
+                        disabled={submission.pending}
+                        class="w-full bg-secondary hover:bg-black/90 disabled:opacity-50 disabled:cursor-not-allowed text-brand font-semibold text-sm rounded-xl py-3 transition-all active:scale-[0.98]"
+                    >
+                        {submission.pending ? 'Creating...' : 'Create'}
+                    </button>
+                </form>
+            </Sheet>
         </div>
     );
 }

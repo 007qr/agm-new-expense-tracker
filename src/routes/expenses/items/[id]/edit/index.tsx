@@ -1,10 +1,12 @@
-import { Show, createSignal, For, Index } from 'solid-js';
-import { action, useSubmission } from '@solidjs/router';
+import { Show, createSignal, For, Index, createEffect } from 'solid-js';
+import { action, createAsync, useSubmission, query, useParams } from '@solidjs/router';
 import { db } from '~/drizzle/client';
-import { Entity, EntityType, EntityVariant } from '~/drizzle/schema';
+import { Entity, EntityType, EntityVariant, Transaction } from '~/drizzle/schema';
+import { eq, inArray } from 'drizzle-orm';
 
-// ... (Keep your existing types and helper functions exactly the same) ...
+// --- Types ---
 type VariantInput = {
+    id?: string; // Existing variants will have an ID
     length: string;
     width: string;
     height: string;
@@ -19,6 +21,7 @@ type ActionResponse = {
 };
 
 type NormalizedVariant = {
+    id?: string;
     length: string | null;
     width: string | null;
     height: string | null;
@@ -39,25 +42,59 @@ const emptyVariant = (): VariantInput => ({
 const isEntityType = (value: string): value is (typeof EntityType)[number] =>
     EntityType.includes(value as (typeof EntityType)[number]);
 
-export const createItem = action(async (formData: FormData): Promise<ActionResponse> => {
-    'use server';
-    // ... (Keep your existing server logic exactly the same) ...
-    const getStringField = (key: string) => {
-        const value = formData.get(key);
-        return typeof value === 'string' ? value.trim() : '';
-    };
 
+// --- Load Function ---
+export const loadItem = query(async (id: string) => {
+    'use server';
+
+    // Fetch the main item
+    const itemPromise = db.select()
+        .from(Entity)
+        .where(eq(Entity.id, id))
+        .then(rows => rows[0]);
+
+    // Fetch the variants for that item
+    const variantsPromise = db.select()
+        .from(EntityVariant)
+        .where(eq(EntityVariant.entity_id, id));
+
+    const [item, variants] = await Promise.all([itemPromise, variantsPromise]);
+
+    if (!item) {
+        throw new Error("Item not found");
+    }
+
+    // Convert numeric/null variant fields to strings for form inputs
+    const variantsForForm = variants.map(v => ({
+        id: v.id,
+        length: v.length ?? '',
+        width: v.width ?? '',
+        height: v.height ?? '',
+        thickness: v.thickness ?? '',
+        dimension_unit: v.dimension_unit ?? '',
+        thickness_unit: v.thickness_unit ?? '',
+    }));
+
+    return { ...item, variants: variantsForForm };
+}, 'load-expense-items');
+
+// --- Action ---
+export const updateItem = action(async (formData: FormData): Promise<ActionResponse> => {
+    'use server';
+
+    const getStringField = (key: string) => (formData.get(key) as string)?.trim() ?? '';
+    const id = getStringField('id');
     const name = getStringField('name');
     const unit = getStringField('unit');
     const type = getStringField('type');
     const variantsRaw = getStringField('variants');
 
+    if (!id) return { success: false, error: 'Item ID is missing.' };
     if (!name) return { success: false, error: 'Item name is required.' };
     if (!unit) return { success: false, error: 'Unit is required.' };
     if (!isEntityType(type)) return { success: false, error: 'Invalid item type selected.' };
 
-
-    let parsedVariants: unknown = [];
+    let parsedVariants: Partial<VariantInput>[] = [];
     if (variantsRaw) {
         try {
             parsedVariants = JSON.parse(variantsRaw);
@@ -82,42 +119,89 @@ export const createItem = action(async (formData: FormData): Promise<ActionRespo
 
     const normalizedVariants: NormalizedVariant[] = Array.isArray(parsedVariants)
         ? parsedVariants
-              .map((variant) => {
-                  const raw = variant as Partial<VariantInput>;
-                  return {
-                      length: toNumericString(raw.length),
-                      width: toNumericString(raw.width),
-                      height: toNumericString(raw.height),
-                      thickness: toNumericString(raw.thickness),
-                      dimension_unit: toOptionalString(raw.dimension_unit),
-                      thickness_unit: toOptionalString(raw.thickness_unit),
-                  };
-              })
+              .map((variant) => ({
+                  id: variant.id, // Keep track of existing variants
+                  length: toNumericString(variant.length),
+                  width: toNumericString(variant.width),
+                  height: toNumericString(variant.height),
+                  thickness: toNumericString(variant.thickness),
+                  dimension_unit: toOptionalString(variant.dimension_unit),
+                  thickness_unit: toOptionalString(variant.thickness_unit),
+              }))
               .filter((variant) => Boolean(variant.length || variant.width || variant.height || variant.thickness))
         : [];
 
     try {
-        const [item] = await db.insert(Entity).values({ name, unit, type }).returning();
+        await db.transaction(async (tx) => {
+            await tx.update(Entity).set({ name, unit, type }).where(eq(Entity.id, id));
 
-        if (normalizedVariants.length > 0) {
-            await db.insert(EntityVariant).values(
-                normalizedVariants.map((variant) => ({
-                    entity_id: item.id,
-                    length: variant.length,
-                    width: variant.width,
-                    height: variant.height,
-                    thickness: variant.thickness,
-                    dimension_unit: variant.dimension_unit,
-                    thickness_unit: variant.thickness_unit,
-                })),
-            );
-        }
+            const existingVariants = await tx.select({ id: EntityVariant.id }).from(EntityVariant).where(eq(EntityVariant.entity_id, id));
+            const submittedVariants = normalizedVariants;
+
+            const existingVariantIds = existingVariants.map(v => v.id);
+            const submittedVariantIds = submittedVariants.map(v => v.id).filter((vId): vId is string => !!vId);
+
+            const variantsToDeleteIds = existingVariantIds.filter(existingId => !submittedVariantIds.includes(existingId));
+            const variantsToAdd = submittedVariants.filter(submitted => !submitted.id);
+            const variantsToUpdate = submittedVariants.filter((submitted): submitted is NormalizedVariant & { id: string } => !!submitted.id);
+
+
+            if (variantsToDeleteIds.length > 0) {
+                const variantsInUse = await tx
+                    .select({ id: Transaction.entity_variant_id })
+                    .from(Transaction)
+                    .where(inArray(Transaction.entity_variant_id, variantsToDeleteIds))
+                    .then(res => res.map(r => r.id));
+
+                const deletableVariantIds = variantsToDeleteIds.filter(variantId => !variantsInUse.includes(variantId));
+
+                if (deletableVariantIds.length > 0) {
+                    await tx.delete(EntityVariant).where(inArray(EntityVariant.id, deletableVariantIds));
+                }
+
+                const nonDeletableCount = variantsToDeleteIds.length - deletableVariantIds.length;
+                if (nonDeletableCount > 0) {
+                    throw new Error('VARIANT_IN_USE');
+                }
+            }
+
+            if (variantsToAdd.length > 0) {
+                await tx.insert(EntityVariant).values(
+                    variantsToAdd.map((variant) => ({
+                        entity_id: id,
+                        length: variant.length,
+                        width: variant.width,
+                        height: variant.height,
+                        thickness: variant.thickness,
+                        dimension_unit: variant.dimension_unit,
+                        thickness_unit: variant.thickness_unit,
+                    })),
+                );
+            }
+
+            if (variantsToUpdate.length > 0) {
+                await Promise.all(variantsToUpdate.map(variant =>
+                    tx.update(EntityVariant).set({
+                        length: variant.length,
+                        width: variant.width,
+                        height: variant.height,
+                        thickness: variant.thickness,
+                        dimension_unit: variant.dimension_unit,
+                        thickness_unit: variant.thickness_unit,
+                    }).where(eq(EntityVariant.id, variant.id))
+                ));
+            }
+        });
 
         return { success: true };
     } catch (error: unknown) {
+        if (error instanceof Error && error.message === 'VARIANT_IN_USE') {
+            return { success: false, error: 'Cannot delete one or more variants because they are currently used in a transaction. Please remove them from transactions before deleting.' };
+        }
+
         if (typeof error === 'object' && error !== null && 'code' in error) {
             const errorCode = (error as { code?: string }).code;
-            if (errorCode === '23505') {
+            if (errorCode === '23505' && (error as any).constraint_name.includes('name')) {
                 return { success: false, error: 'This item name is already taken.' };
             }
         }
@@ -126,9 +210,27 @@ export const createItem = action(async (formData: FormData): Promise<ActionRespo
     }
 });
 
-export default function CreateItemPage() {
-    const submission = useSubmission(createItem);
+
+// --- Component ---
+export default function EditItemPage() {
+    const params = useParams<{ id: string }>();
+    const itemData = createAsync(() => loadItem(params.id));
+    const submission = useSubmission(updateItem);
+
+    const [name, setName] = createSignal('');
+    const [unit, setUnit] = createSignal('');
+    const [type, setType] = createSignal('');
     const [variants, setVariants] = createSignal<VariantInput[]>([]);
+
+    createEffect(() => {
+        const data = itemData();
+        if (data) {
+            setName(data.name);
+            setUnit(data.unit);
+            setType(data.type);
+            setVariants(data.variants);
+        }
+    });
 
     const updateVariant = (index: number, field: keyof VariantInput, value: string) => {
         setVariants((prev) => prev.map((variant, idx) => (idx === index ? { ...variant, [field]: value } : variant)));
@@ -142,21 +244,21 @@ export default function CreateItemPage() {
         setVariants((prev) => prev.filter((_, idx) => idx !== index));
     };
 
-    // Shared styles for the variant inputs to ensure consistency
     const variantInputClass =
         'w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-800 outline-none transition-colors placeholder:text-zinc-400 hover:border-zinc-300 focus:border-black/40 focus:ring-1 focus:ring-black/10';
-
     const variantLabelClass = 'text-[10px] uppercase tracking-wider text-zinc-600 font-bold mb-1.5 block';
 
     return (
         <div class="w-full flex items-center justify-center p-6 bg-brand min-h-screen">
+            <Show when={itemData()} fallback={<div>Loading...</div>}>
             <div class="w-full max-w-3xl animate-in fade-in zoom-in-95 duration-500">
                 <div class="mb-8">
-                    <h1 class="text-xl font-medium text-black tracking-tight">New Item</h1>
-                    <p class="text-zinc-500 text-sm mt-1">Create an item and define its variants.</p>
+                    <h1 class="text-xl font-medium text-black tracking-tight">Edit Item</h1>
+                    <p class="text-zinc-500 text-sm mt-1">Update the item details and its variants.</p>
                 </div>
 
-                <form action={createItem} method="post" class="flex flex-col gap-8">
+                <form action={updateItem} method="post" class="flex flex-col gap-8">
+                    <input type="hidden" name="id" value={params.id} />
                     <div class="flex-1 space-y-8">
                         {/* Main Item Details */}
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -174,6 +276,8 @@ export default function CreateItemPage() {
                                     required
                                     placeholder="e.g. Steel Rod"
                                     class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none placeholder:text-zinc-400 transition-colors"
+                                    value={name()}
+                                    onInput={e => setName(e.currentTarget.value)}
                                 />
                             </div>
 
@@ -189,8 +293,10 @@ export default function CreateItemPage() {
                                     name="unit"
                                     required
                                     class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer [&>option]:bg-white [&>option]:text-black"
+                                    value={unit()}
+                                    onChange={e => setUnit(e.currentTarget.value)}
                                 >
-                                    <option value="" disabled selected>
+                                    <option value="" disabled>
                                         Select unit...
                                     </option>
                                     <option value="kg">kg</option>
@@ -214,8 +320,10 @@ export default function CreateItemPage() {
                                     name="type"
                                     required
                                     class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer [&>option]:bg-white [&>option]:text-black"
+                                    value={type()}
+                                    onChange={e => setType(e.currentTarget.value)}
                                 >
-                                    <option value="" disabled selected>
+                                    <option value="" disabled>
                                         Select type...
                                     </option>
                                     <option value="cash">Cash</option>
@@ -419,11 +527,12 @@ export default function CreateItemPage() {
                             disabled={submission.pending}
                             class="w-full bg-secondary hover:bg-black/90 disabled:opacity-50 disabled:cursor-not-allowed text-brand font-semibold text-sm rounded-xl py-3.5 transition-all active:scale-[0.99]"
                         >
-                            {submission.pending ? 'Creating...' : 'Create Item'}
+                            {submission.pending ? 'Updating...' : 'Update Item'}
                         </button>
                     </div>
                 </form>
             </div>
+            </Show>
         </div>
     );
 }

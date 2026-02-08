@@ -3,7 +3,6 @@ import { useSubmission } from '@solidjs/router';
 import { action } from '@solidjs/router';
 import { db } from '~/drizzle/client';
 import { Destination } from '~/drizzle/schema';
-import { redirect } from '@solidjs/router';
 
 type ActionResponse = {
     success: boolean;
@@ -24,7 +23,7 @@ export const createDestination = action(async (formData: FormData): Promise<Acti
     }
 
     try {
-        const [newDestination] = await db
+        await db
             .insert(Destination)
             .values({
                 name,
@@ -32,11 +31,8 @@ export const createDestination = action(async (formData: FormData): Promise<Acti
             })
             .returning();
 
-        throw redirect(`/destination/${newDestination.id}`);
+        return { success: true };
     } catch (e: any) {
-        // If it's a redirect, let it pass through
-        if (e instanceof Response) throw e;
-
         if (e.code === '23505') {
             return { success: false, error: 'This destination name is already taken.' };
         }

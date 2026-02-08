@@ -1,0 +1,5 @@
+- create a component like combobox that will be used for selecting destinations and entities
+- load limited destinations in the combobox and use virtualization for the list
+- implement a common unit field for all forms
+- add csv download functionality on /expenses/${destination_id}/ledger it should also take account of filter for date range
+- the show total expenses on /expenses/${destination_id}/ledger it should also take account of filter for date range
