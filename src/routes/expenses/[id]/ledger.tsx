@@ -160,11 +160,6 @@ export default function ExpenseLedgerPage() {
     const totalCount = () => data()?.totalCount ?? 0;
     const deletion = useSubmission(deleteTransaction);
     const [showTotal, setShowTotal] = createSignal(false);
-    const totalAmount = createAsync(() =>
-        showTotal()
-            ? loadTotalAmount(params.id, activeFilter(), serializedDateRange())
-            : Promise.resolve(null)
-    );
 
     return (
         <div class="w-full mx-auto px-4 py-12">
@@ -176,24 +171,13 @@ export default function ExpenseLedgerPage() {
                     <h1 class="text-3xl font-bold text-black tracking-tight">Expense Ledger</h1>
                 </div>
                 <div class="flex gap-4 items-start">
-                    <div class="text-right">
-                        <p class="text-sm font-bold text-black">Total Amount</p>
-                        <Show
-                            when={showTotal()}
-                            fallback={
-                                <button
-                                    onClick={() => setShowTotal(true)}
-                                    class="text-blue-600 hover:underline"
-                                >
-                                    Show Total
-                                </button>
-                            }
-                        >
-                            <span class="text-2xl font-bold text-black">
-                                ₹{Number(totalAmount() ?? 0).toFixed(2)}
-                            </span>
-                        </Show>
-                    </div>
+                    <TotalAmountDisplay
+                        destinationId={params.id}
+                        filter={activeFilter()}
+                        dateRange={serializedDateRange()}
+                        showTotal={showTotal()}
+                        onShowTotal={() => setShowTotal(true)}
+                    />
                     <div>
                         <a
                             href={`/api/expenses/${params.id}/export?filter=${activeFilter()}&dateRange=${encodeURIComponent(JSON.stringify(serializedDateRange()))}`}
@@ -473,3 +457,48 @@ const TableSkeleton = () => (
         )}
     </For>
 );
+
+type TotalAmountDisplayProps = {
+    destinationId: string;
+    filter: string;
+    dateRange: { from: string; to: string } | null;
+    showTotal: boolean;
+    onShowTotal: () => void;
+};
+
+function TotalAmountDisplay(props: TotalAmountDisplayProps) {
+    const totalAmount = createAsync(() =>
+        props.showTotal
+            ? loadTotalAmount(props.destinationId, props.filter, props.dateRange)
+            : Promise.resolve(null)
+    );
+
+    return (
+        <div class="text-right">
+            <p class="text-sm font-bold text-black">Total Amount</p>
+            <Show
+                when={props.showTotal}
+                fallback={
+                    <button
+                        onClick={props.onShowTotal}
+                        class="text-blue-600 hover:underline text-sm"
+                    >
+                        Show Total
+                    </button>
+                }
+            >
+                <Suspense
+                    fallback={
+                        <div class="text-2xl font-bold text-black animate-pulse">
+                            ₹...
+                        </div>
+                    }
+                >
+                    <span class="text-2xl font-bold text-black">
+                        ₹{Number(totalAmount() ?? 0).toFixed(2)}
+                    </span>
+                </Suspense>
+            </Show>
+        </div>
+    );
+}
