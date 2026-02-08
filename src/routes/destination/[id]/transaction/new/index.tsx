@@ -9,6 +9,7 @@ import {
     Destination,
     TransactionType as TransactionTypeValues,
 } from '~/drizzle/schema'; // Adjust path if needed
+import { SelectInput } from '~/components/form';
 
 type WarehouseTransactionType = (typeof TransactionTypeValues)[number];
 
@@ -324,45 +325,3 @@ function FormSkeleton() {
 // ==========================================
 // 5. UI COMPONENTS (Select Input)
 // ==========================================
-
-type SelectProps = {
-    name: string;
-    label: string;
-    children: JSX.Element;
-    required?: boolean;
-    onChange?: JSX.EventHandlerUnion<HTMLSelectElement, Event>;
-};
-
-function SelectInput(props: SelectProps) {
-    return (
-        <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
-            <label class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500 select-none group-focus-within:text-zinc-800 transition-colors">
-                {props.label}
-            </label>
-            {/* Custom Arrow UI */}
-            <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500 group-hover:text-zinc-700">
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                >
-                    <path d="m6 9 6 6 6-6" />
-                </svg>
-            </div>
-            <select
-                name={props.name}
-                required={props.required}
-                onChange={props.onChange}
-                class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer [&>option]:bg-white [&>option]:text-black"
-            >
-                {props.children}
-            </select>
-        </div>
-    );
-}

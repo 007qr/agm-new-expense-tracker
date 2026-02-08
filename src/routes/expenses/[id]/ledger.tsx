@@ -8,6 +8,7 @@ import { Destination, Entity, Transaction, TransportationCost, EntityVariant } f
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 import Breadcrumb from '~/components/Breadcrumb';
 import { loadTotalAmount } from './totalAmount';
+import { serializeDateLocal } from '~/utils/dateUtils';
 
 export const loadTransactions = query(
     async (
@@ -32,8 +33,8 @@ export const loadTransactions = query(
             dateFilter = gte(Transaction.created_at, thirtyDaysAgo);
         } else if (filter === 'custom' && dateRange) {
             dateFilter = and(
-                gte(Transaction.created_at, new Date(dateRange.from)),
-                lte(Transaction.created_at, new Date(dateRange.to)),
+                gte(Transaction.created_at, new Date(dateRange.from + 'T00:00:00')),
+                lte(Transaction.created_at, new Date(dateRange.to + 'T23:59:59')),
             );
         }
         const baseFilter = or(eq(Transaction.destination_id, dest), eq(Transaction.source_id, dest));
@@ -143,7 +144,7 @@ export default function ExpenseLedgerPage() {
     const serializedDateRange = () => {
         const range = dateRange();
         return range
-            ? { from: range.from.toISOString().split('T')[0], to: range.to.toISOString().split('T')[0] }
+            ? { from: serializeDateLocal(range.from), to: serializeDateLocal(range.to) }
             : null;
     };
     const data = createAsync(() =>
@@ -159,10 +160,10 @@ export default function ExpenseLedgerPage() {
     const totalCount = () => data()?.totalCount ?? 0;
     const deletion = useSubmission(deleteTransaction);
     const [showTotal, setShowTotal] = createSignal(false);
-    const [triggerFetch, setTriggerFetch] = createSignal(false);
-    const [totalAmount] = createResource(
-        () => (triggerFetch() ? params.id : null),
-        (id) => loadTotalAmount(id),
+    const totalAmount = createAsync(() =>
+        showTotal()
+            ? loadTotalAmount(params.id, activeFilter(), serializedDateRange())
+            : Promise.resolve(null)
     );
 
     return (
@@ -174,27 +175,38 @@ export default function ExpenseLedgerPage() {
                 <div>
                     <h1 class="text-3xl font-bold text-black tracking-tight">Expense Ledger</h1>
                 </div>
-                <div class="text-right">
-                    <p class="text-sm font-bold text-black">Total Amount</p>
-                    <Show
-                        when={showTotal()}
-                        fallback={
-                            <button
-                                onClick={() => {
-                                    setShowTotal(true);
-                                    setTriggerFetch(true);
-                                }}
-                                class="text-blue-600 hover:underline"
-                                disabled={totalAmount.loading}
-                            >
-                                {totalAmount.loading ? 'Loading...' : 'Show Total'}
-                            </button>
-                        }
-                    >
-                        <span class="text-2xl font-bold text-black" classList={{ 'blur-sm': totalAmount.loading }}>
-                            ₹{Number(totalAmount() ?? 0).toFixed(2)}
-                        </span>
-                    </Show>
+                <div class="flex gap-4 items-start">
+                    <div class="text-right">
+                        <p class="text-sm font-bold text-black">Total Amount</p>
+                        <Show
+                            when={showTotal()}
+                            fallback={
+                                <button
+                                    onClick={() => setShowTotal(true)}
+                                    class="text-blue-600 hover:underline"
+                                >
+                                    Show Total
+                                </button>
+                            }
+                        >
+                            <span class="text-2xl font-bold text-black">
+                                ₹{Number(totalAmount() ?? 0).toFixed(2)}
+                            </span>
+                        </Show>
+                    </div>
+                    <div>
+                        <a
+                            href={`/api/expenses/${params.id}/export?filter=${activeFilter()}&dateRange=${encodeURIComponent(JSON.stringify(serializedDateRange()))}`}
+                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm rounded-lg transition-colors flex items-center gap-2 shadow-sm"
+                            title="Export filtered expenses to CSV"
+                            download
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Export CSV
+                        </a>
+                    </div>
                 </div>
             </div>
             {/* Improved Filter UI */}

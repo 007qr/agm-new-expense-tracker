@@ -4,6 +4,8 @@ import { action, createAsync, query, redirect, useSubmission } from '@solidjs/ro
 import { db } from '~/drizzle/client';
 import { Entity, Destination, PaymentStatus, TransportationCost, Transaction, EntityVariant } from '~/drizzle/schema';
 import { createId } from '@paralleldrive/cuid2';
+import { SelectInput, TextInput } from '~/components/form';
+import { VirtualizedCombobox } from '~/components/VirtualizedCombobox';
 
 // --- QUERIES & ACTIONS ---
 
@@ -140,18 +142,20 @@ function FormContent() {
                 <div class="space-y-5">
                     <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Route</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <SelectInput name="source_id" label="Paid From (Source)" required>
-                            <option value="" disabled selected>
-                                Select a source...
-                            </option>
-                            <For each={destinations()}>{(dest) => <option value={dest.id}>{dest.name}</option>}</For>
-                        </SelectInput>
-                        <SelectInput name="destination_id" label="Paid To (Destination)" required>
-                            <option value="" disabled selected>
-                                Select a destination...
-                            </option>
-                            <For each={destinations()}>{(dest) => <option value={dest.id}>{dest.name}</option>}</For>
-                        </SelectInput>
+                        <VirtualizedCombobox
+                            name="source_id"
+                            label="Paid From (Source)"
+                            placeholder="Search source..."
+                            required
+                            options={destinations()}
+                        />
+                        <VirtualizedCombobox
+                            name="destination_id"
+                            label="Paid To (Destination)"
+                            placeholder="Search destination..."
+                            required
+                            options={destinations()}
+                        />
                     </div>
                 </div>
 
@@ -161,17 +165,20 @@ function FormContent() {
                 <div class="space-y-5">
                     <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Expense Details</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <SelectInput
+                        <VirtualizedCombobox
                             name="entity_id"
                             label="Expense For (Entity)"
+                            placeholder="Search item..."
                             required
-                            onChange={(e) => setSelectedEntityId(e.currentTarget.value)}
-                        >
-                            <option value="" disabled selected>
-                                Select an entity...
-                            </option>
-                            <For each={entities()}>{(item) => <option value={item.id}>{item.name}</option>}</For>
-                        </SelectInput>
+                            options={entities()}
+                            onValueChange={setSelectedEntityId}
+                            renderOption={(option) => (
+                                <div class="flex items-center justify-between">
+                                    <span>{option.name}</span>
+                                    {option.unit && <span class="text-xs text-zinc-500 ml-2">{option.unit}</span>}
+                                </div>
+                            )}
+                        />
 
                         <div
                             class={`transition-opacity duration-300 ${!selectedEntityId() ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}
@@ -335,78 +342,3 @@ function FormSkeleton() {
 }
 
 // --- REUSABLE UI COMPONENTS ---
-
-type InputProps = {
-    name: string;
-    label: string;
-    type?: string;
-    required?: boolean;
-    readOnly?: boolean;
-    value?: string | number;
-    placeholder?: string;
-    step?: string;
-    onInput?: JSX.EventHandlerUnion<HTMLInputElement, Event>;
-};
-
-function TextInput(props: InputProps) {
-    return (
-        <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all">
-            <label class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
-                {props.label}
-            </label>
-            <input
-                type={props.type || 'text'}
-                name={props.name}
-                required={props.required}
-                readOnly={props.readOnly}
-                value={props.value}
-                placeholder={props.placeholder}
-                step={props.step}
-                onInput={props.onInput}
-                class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none placeholder:text-zinc-400 disabled:opacity-50"
-                disabled={props.readOnly}
-            />
-        </div>
-    );
-}
-
-type SelectProps = {
-    name: string;
-    label: string;
-    children: JSX.Element;
-    required?: boolean;
-    onChange?: JSX.EventHandlerUnion<HTMLSelectElement, Event>;
-};
-
-function SelectInput(props: SelectProps) {
-    return (
-        <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all">
-            <label class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
-                {props.label}
-            </label>
-            <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                >
-                    <path d="m6 9 6 6 6-6" />
-                </svg>
-            </div>
-            <select
-                name={props.name}
-                required={props.required}
-                onChange={props.onChange}
-                class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer"
-            >
-                {props.children}
-            </select>
-        </div>
-    );
-}
