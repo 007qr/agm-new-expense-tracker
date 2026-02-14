@@ -374,23 +374,31 @@ export default function ExpenseLedgerPage() {
                                                             : '--'}
                                                     </td>
                                                     <td class="py-3 px-3 text-right sticky right-0 bg-white group-hover:bg-zinc-50/80 z-10">
-                                                        <form action={deleteTransaction} method="post">
-                                                            <input type="hidden" name="id" value={tx.id} />
-                                                            <input
-                                                                type="hidden"
-                                                                name="redirectUrl"
-                                                                value={location.pathname + location.search}
-                                                            />
-                                                            <button
-                                                                type="submit"
-                                                                class="text-xs font-semibold text-red-500 hover:text-red-700"
-                                                                onClick={(e) =>
-                                                                    !confirm('Delete transaction?') && e.preventDefault()
-                                                                }
+                                                        <div class="flex items-center justify-end gap-3">
+                                                            <a
+                                                                href={`/expenses/edit/${tx.id}?redirect=${encodeURIComponent(location.pathname + location.search)}`}
+                                                                class="text-xs font-semibold text-blue-500 hover:text-blue-700"
                                                             >
-                                                                Delete
-                                                            </button>
-                                                        </form>
+                                                                Edit
+                                                            </a>
+                                                            <form action={deleteTransaction} method="post">
+                                                                <input type="hidden" name="id" value={tx.id} />
+                                                                <input
+                                                                    type="hidden"
+                                                                    name="redirectUrl"
+                                                                    value={location.pathname + location.search}
+                                                                />
+                                                                <button
+                                                                    type="submit"
+                                                                    class="text-xs font-semibold text-red-500 hover:text-red-700"
+                                                                    onClick={(e) =>
+                                                                        !confirm('Delete transaction?') && e.preventDefault()
+                                                                    }
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            </form>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );

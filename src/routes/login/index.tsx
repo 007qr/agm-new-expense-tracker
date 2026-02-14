@@ -20,7 +20,7 @@ export default function LoginPage() {
             await authClient.signIn.email({
                 email,
                 password,
-                callbackURL: '/dashboard',
+                callbackURL: '/asd',
             });
         } catch (error) {
             setErrorMessage('Invalid email or password');

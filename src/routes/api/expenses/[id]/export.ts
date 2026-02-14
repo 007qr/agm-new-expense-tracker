@@ -6,11 +6,11 @@ import { Transaction, Entity, Destination, TransportationCost, EntityVariant } f
 
 export async function GET(event: APIEvent) {
 	const dest = event.params.id;
-	const filter = event.request.url.split('?')[1] ? new URL(event.request.url).searchParams.get('filter') ?? 'all' : 'all';
-	const dateRangeParam = event.request.url.split('?')[1] ? new URL(event.request.url).searchParams.get('dateRange') : null;
+	const url = new URL(event.request.url);
+	const filter = url.searchParams.get('filter') ?? 'all';
+	const dateRangeParam = url.searchParams.get('dateRange');
 	const dateRange = dateRangeParam && dateRangeParam !== 'null' ? JSON.parse(dateRangeParam) : null;
 
-	// Apply same filter logic as loadTransactions
 	let dateFilter;
 	if (filter === '7days') {
 		const sevenDaysAgo = new Date();
@@ -30,12 +30,10 @@ export async function GET(event: APIEvent) {
 	const baseFilter = or(eq(Transaction.destination_id, dest), eq(Transaction.source_id, dest));
 	const filters = and(baseFilter, dateFilter);
 
-	// Use same query structure as loadTransactions (no limit/offset)
 	const evAlias = alias(EntityVariant, 'ev');
 	const sourceAlias = alias(Destination, 'source');
 	const destinationAlias = alias(Destination, 'destination');
 
-	// Copy variant formatting SQL from ledger.tsx
 	const variantDetails = sql<string>`
 		NULLIF(
 			TRIM(
@@ -98,13 +96,6 @@ export async function GET(event: APIEvent) {
 		.where(filters)
 		.orderBy(desc(Transaction.created_at));
 
-	// Generate CSV with proper escaping
-	const headers = [
-		'Date', 'Type', 'Item', 'Variant', 'From/To',
-		'Rate (₹)', 'Quantity', 'Unit', 'Amount (₹)',
-		'Payment Status', 'Vehicle Type', 'Reg. No.', 'Transport Cost (₹)'
-	];
-
 	const escapeCSV = (value: string | null | undefined): string => {
 		if (!value) return '';
 		const str = String(value);
@@ -114,28 +105,49 @@ export async function GET(event: APIEvent) {
 		return str;
 	};
 
+	const headers = [
+		'Date', 'Type', 'Item', 'Variant', 'From/To',
+		'Rate (₹)', 'Quantity', 'Unit', 'Amount (₹)',
+		'Payment Status', 'Vehicle Type', 'Reg. No.', 'Transport Cost (₹)'
+	];
+
+	const dataRows = results.map(row => {
+		const type = row.destination_id === dest ? 'Inward' : 'Outward';
+		const fromTo = row.destination_id === dest ? row.source_name : row.destination_name;
+
+		return [
+			new Date(row.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: '2-digit' }),
+			type,
+			escapeCSV(row.entity_name ?? ''),
+			escapeCSV(row.entity_variant ?? '--'),
+			escapeCSV(fromTo ?? ''),
+			Number(row.rate ?? 0).toFixed(2),
+			Number(row.quantity ?? 0).toFixed(2),
+			row.unit ?? '',
+			Number(row.amount ?? 0).toFixed(2),
+			row.payment_status ?? '',
+			row.vehicle_type ?? '--',
+			row.reg_no ?? '--',
+			row.transportation_cost ? Number(row.transportation_cost).toFixed(2) : '--',
+		].join(',');
+	});
+
+	// Total: SUM(amount + transportation_cost) for inward transactions only (same as ledger page)
+	let total = 0;
+	for (const row of results) {
+		if (row.destination_id === dest) {
+			total += Number(row.amount ?? 0) + Number(row.transportation_cost ?? 0);
+		}
+	}
+
+	const emptyRow = Array(headers.length).fill('').join(',');
+	const totalRow = ['Total', '', '', '', '', '', '', '', total.toFixed(2), '', '', '', ''].join(',');
+
 	const csvRows = [
 		headers.join(','),
-		...results.map(row => {
-			const type = row.destination_id === dest ? 'Inward' : 'Outward';
-			const fromTo = row.destination_id === dest ? row.source_name : row.destination_name;
-
-			return [
-				new Date(row.created_at).toLocaleDateString(),
-				type,
-				escapeCSV(row.entity_name ?? ''),
-				escapeCSV(row.entity_variant ?? '--'),
-				escapeCSV(fromTo ?? ''),
-				Number(row.rate ?? 0).toFixed(2),
-				Number(row.quantity ?? 0).toFixed(2),
-				row.unit ?? '',
-				Number(row.amount ?? 0).toFixed(2),
-				row.payment_status ?? '',
-				row.vehicle_type ?? '--',
-				row.reg_no ?? '--',
-				row.transportation_cost ? Number(row.transportation_cost).toFixed(2) : '--',
-			].join(',');
-		})
+		...dataRows,
+		emptyRow,
+		totalRow,
 	];
 
 	const csv = csvRows.join('\n');

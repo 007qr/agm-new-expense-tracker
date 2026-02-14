@@ -2,96 +2,76 @@ import { auth } from '~/lib/auth';
 import { createMiddleware } from '@solidjs/start/middleware';
 import { redirect } from '@solidjs/router';
 
+// --- Config ---
 const PUBLIC_ROUTES = ['/login', '/signup'];
-const DEFAULT_REDIRECT = '/dashboard';
+const DEFAULT_REDIRECT = '/asd';
 
-// New Role Constants
-const ADMIN_ROLE = 'admin';
-const WAREHOUSE_USER_ROLE = 'warehouse-user';
-const EXPENSE_USER_ROLE = 'expense-user';
+type Role = 'admin' | 'warehouse-user' | 'expense-user';
 
-// New Route Groupings
-const EXPENSE_SPECIFIC_ROUTES = ['/expenses', '/sites', '/expenses/items/new']; // includes /expenses/[id], /expenses/[id]/new
-const WAREHOUSE_SPECIFIC_ROUTES = ['/dashboard', '/items']; // includes /items/[id], /items/[id]/edit, /items/new
-const DESTINATION_COMMON_ROUTES = ['/destination']; // includes /destination/[id], /destination/[id]/ledger, etc.
+// Each route prefix → which roles can access it
+// Admin is handled separately (gets access to everything)
+const ROUTE_ACCESS: Record<string, Role[]> = {
+    '/expenses': ['expense-user'],
+    '/sites': ['expense-user'],
+    '/dashboard': ['warehouse-user'],
+    '/items': ['warehouse-user'],
+    '/destination': ['warehouse-user', 'expense-user'],
+};
 
-function isPublicPath(pathname: string) {
-    return PUBLIC_ROUTES.some((p) => pathname === p || pathname.startsWith(p + '/'));
+// --- Helpers ---
+function matchesPath(pathname: string, prefix: string) {
+    return pathname === prefix || pathname.startsWith(prefix + '/');
 }
 
-// New helper for checking if a path belongs to a group
-function isPathInGroup(pathname: string, group: string[]) {
-    return group.some((p) => pathname === p || pathname.startsWith(p + '/'));
+function isPublic(pathname: string) {
+    return PUBLIC_ROUTES.some((p) => matchesPath(pathname, p));
+}
+
+function isAllowed(pathname: string, role: Role): boolean {
+    if (role === 'admin') return true;
+
+    for (const [prefix, allowedRoles] of Object.entries(ROUTE_ACCESS)) {
+        if (matchesPath(pathname, prefix)) {
+            return allowedRoles.includes(role);
+        }
+    }
+
+    // No rule matched → allow any logged-in user
+    return true;
 }
 
 function isHtmlNavigation(req: Request) {
-    if (req.method !== 'GET') return false;
-    const accept = req.headers.get('accept') ?? '';
-    return accept.includes('text/html');
+    return req.method === 'GET' && (req.headers.get('accept') ?? '').includes('text/html');
 }
 
+// --- Middleware ---
 export default createMiddleware({
     onRequest: async (event) => {
-        const url = new URL(event.request.url);
-        const pathname = url.pathname;
+        const { pathname } = new URL(event.request.url);
 
-        if (pathname.startsWith('/_server')) return;
-        if (pathname.startsWith('/api')) return;
-        if (pathname.startsWith('/assets') || pathname === '/favicon.ico') return;
-        if (!isHtmlNavigation(event.request)) return;
+        // Skip non-page requests
+        if (
+            pathname.startsWith('/_server') ||
+            pathname.startsWith('/api') ||
+            pathname.startsWith('/assets') ||
+            pathname === '/favicon.ico' ||
+            !isHtmlNavigation(event.request)
+        )
+            return;
 
         const session = await auth.api.getSession({ headers: event.request.headers });
-        const userRole = session?.user?.role;
         const isLoggedIn = !!session?.user;
 
-        const publicRoute = isPublicPath(pathname);
-
-        // Allow public routes without authentication
-        if (publicRoute) {
-            // Redirect logged-in users away from public routes like login/signup
-            if (isLoggedIn) {
-                return redirect(DEFAULT_REDIRECT, 302);
-            }
-            return;
+        if (isPublic(pathname)) {
+            return isLoggedIn ? redirect(DEFAULT_REDIRECT, 302) : undefined;
         }
 
-        // If not logged in and not a public route, redirect to login
         if (!isLoggedIn) {
-            const next = encodeURIComponent(url.pathname + url.search);
-            return redirect(`/login?next=${next}`, 302);
+            return redirect(`/login?next=${encodeURIComponent(pathname)}`, 302);
         }
 
-        // --- Role-Based Access Control for logged-in users ---
-
-        // Expense specific routes
-        if (isPathInGroup(pathname, EXPENSE_SPECIFIC_ROUTES)) {
-            if (userRole === ADMIN_ROLE || userRole === EXPENSE_USER_ROLE) {
-                return; // Allowed
-            } else {
-                return redirect(DEFAULT_REDIRECT, 302); // Unauthorized for this role
-            }
+        if (!isAllowed(pathname, session!.user.role as Role)) {
+            return redirect(DEFAULT_REDIRECT, 302);
         }
-
-        // Warehouse specific routes
-        if (isPathInGroup(pathname, WAREHOUSE_SPECIFIC_ROUTES)) {
-            if (userRole === ADMIN_ROLE || userRole === WAREHOUSE_USER_ROLE) {
-                return; // Allowed
-            } else {
-                return redirect(DEFAULT_REDIRECT, 302); // Unauthorized for this role
-            }
-        }
-
-        // Destination common routes (accessible by warehouse and expense users)
-        if (isPathInGroup(pathname, DESTINATION_COMMON_ROUTES)) {
-            if (userRole === ADMIN_ROLE || userRole === WAREHOUSE_USER_ROLE || userRole === EXPENSE_USER_ROLE) {
-                return; // Allowed
-            } else {
-                return redirect(DEFAULT_REDIRECT, 302); // Unauthorized for this role
-            }
-        }
-
-        // Fallback: If none of the above specific routes match, but user is logged in, allow access.
-        // This implies any other non-public route is accessible by any logged-in user by default.
-        return;
     },
 });
