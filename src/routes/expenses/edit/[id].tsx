@@ -8,6 +8,7 @@ import { SelectInput, TextInput } from '~/components/form';
 import { VirtualizedCombobox } from '~/components/VirtualizedCombobox';
 import { loadFormData } from '../new/index';
 import { serializeDateLocal } from '~/utils/dateUtils';
+import { requireAuth } from '~/lib/require-auth';
 
 const loadTransaction = query(async (id: string) => {
     'use server';
@@ -39,6 +40,7 @@ const loadTransaction = query(async (id: string) => {
 
 export const updateExpense = action(async (formData: FormData) => {
     'use server';
+    await requireAuth(['expense-user']);
 
     const getStringField = (key: string) => (formData.get(key) as string)?.trim() ?? '';
     const getNumericField = (key: string) => {

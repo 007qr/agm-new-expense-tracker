@@ -5,6 +5,7 @@ import { createEffect, createSignal, For, Show, Suspense } from 'solid-js';
 import { db } from '~/drizzle/client';
 import { Destination, EntityVariantWarehouse, EntityWarehouse, WarehouseTransaction } from '~/drizzle/schema';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
+import { requireAuth } from '~/lib/require-auth';
 
 export const loadTransactions = query(async (dest: string, entity: string, limit: number, offset: number) => {
     'use server';
@@ -97,6 +98,7 @@ type ActionResponse = {
 
 export const deleteTransaction = action(async (formData: FormData): Promise<ActionResponse> => {
     'use server';
+    await requireAuth(['warehouse-user']);
 
     const rawId = formData.get('id');
     const rawDest = formData.get('dest');

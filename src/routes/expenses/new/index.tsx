@@ -6,6 +6,7 @@ import { Entity, Destination, PaymentStatus, TransportationCost, Transaction, En
 import { createId } from '@paralleldrive/cuid2';
 import { SelectInput, TextInput } from '~/components/form';
 import { VirtualizedCombobox } from '~/components/VirtualizedCombobox';
+import { requireAuth } from '~/lib/require-auth';
 
 // --- QUERIES & ACTIONS ---
 
@@ -21,6 +22,7 @@ export const loadFormData = query(async () => {
 
 export const createExpense = action(async (formData: FormData) => {
     'use server';
+    await requireAuth(['expense-user']);
 
     const getStringField = (key: string) => (formData.get(key) as string)?.trim() ?? '';
     const getNumericField = (key: string) => {

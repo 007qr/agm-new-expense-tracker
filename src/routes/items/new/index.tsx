@@ -2,6 +2,7 @@ import { Show, createSignal, For, Index } from 'solid-js';
 import { action, redirect, useSubmission } from '@solidjs/router';
 import { db } from '~/drizzle/client';
 import { EntityType, EntityVariantWarehouse, EntityWarehouse } from '~/drizzle/schema';
+import { requireAuth } from '~/lib/require-auth';
 
 // ... (Keep your existing types and helper functions exactly the same) ...
 type VariantInput = {
@@ -41,7 +42,8 @@ const isEntityType = (value: string): value is (typeof EntityType)[number] =>
 
 export const createItem = action(async (formData: FormData): Promise<ActionResponse> => {
     'use server';
-    // ... (Keep your existing server logic exactly the same) ...
+    await requireAuth(['warehouse-user']);
+
     const getStringField = (key: string) => {
         const value = formData.get(key);
         return typeof value === 'string' ? value.trim() : '';

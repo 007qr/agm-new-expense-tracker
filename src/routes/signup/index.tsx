@@ -29,7 +29,7 @@ export const register = action(async (formData: FormData) => {
 
         // TEMPORARY: Assign 'admin' role for testing RBAC
         if (newUserResponse?.user?.id) {
-            await db.update(user).set({ role: 'admin' }).where(eq(user.id, newUserResponse.user.id));
+            await db.update(user).set({ role: 'user' }).where(eq(user.id, newUserResponse.user.id));
         } else {
             console.warn('Could not assign role to new user: user ID not found in signup response.');
         }

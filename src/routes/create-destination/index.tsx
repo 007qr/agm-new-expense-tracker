@@ -3,6 +3,7 @@ import { useSubmission } from '@solidjs/router';
 import { action } from '@solidjs/router';
 import { db } from '~/drizzle/client';
 import { Destination } from '~/drizzle/schema';
+import { requireAuth } from '~/lib/require-auth';
 
 type ActionResponse = {
     success: boolean;
@@ -11,6 +12,7 @@ type ActionResponse = {
 
 export const createDestination = action(async (formData: FormData): Promise<ActionResponse> => {
     'use server';
+    await requireAuth(['expense-user', 'warehouse-user']);
 
     // Artificial delay to show off the loading state (optional, remove in prod)
     // await new Promise(r => setTimeout(r, 800));

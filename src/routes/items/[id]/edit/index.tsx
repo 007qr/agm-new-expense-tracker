@@ -3,6 +3,7 @@ import { action, createAsync, query, redirect, useParams, useSubmission } from '
 import { eq } from 'drizzle-orm';
 import { db } from '~/drizzle/client';
 import { EntityType, EntityVariantWarehouse, EntityWarehouse } from '~/drizzle/schema';
+import { requireAuth } from '~/lib/require-auth';
 
 type VariantInput = {
     id?: string;
@@ -77,6 +78,7 @@ const loadItemForEdit = query(async (itemId: string) => {
 
 export const updateItem = action(async (formData: FormData): Promise<ActionResponse> => {
     'use server';
+    await requireAuth(['warehouse-user']);
 
     const getStringField = (key: string) => {
         const value = formData.get(key);

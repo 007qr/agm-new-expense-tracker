@@ -9,6 +9,7 @@ import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 import Breadcrumb from '~/components/Breadcrumb';
 import { loadTotalAmount } from './totalAmount';
 import { serializeDateLocal } from '~/utils/dateUtils';
+import { requireAuth } from '~/lib/require-auth';
 
 export const loadTransactions = query(
     async (
@@ -127,6 +128,7 @@ export const loadTransactions = query(
 
 export const deleteTransaction = action(async (formData: FormData) => {
     'use server';
+    await requireAuth(['expense-user']);
     const id = formData.get('id') as string;
     await db.delete(Transaction).where(eq(Transaction.id, id));
     return redirect(formData.get('redirectUrl') as string, 302);

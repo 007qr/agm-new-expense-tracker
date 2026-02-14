@@ -3,8 +3,18 @@ import { eq, and, gte, lte, or, desc, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db } from '~/drizzle/client';
 import { Transaction, Entity, Destination, TransportationCost, EntityVariant } from '~/drizzle/schema';
+import { auth } from '~/lib/auth';
 
 export async function GET(event: APIEvent) {
+	const session = await auth.api.getSession({ headers: event.request.headers });
+	if (!session?.user) {
+		return new Response('Unauthorized', { status: 401 });
+	}
+	const role = session.user.role as string;
+	if (role !== 'admin' && role !== 'expense-user') {
+		return new Response('Forbidden', { status: 403 });
+	}
+
 	const dest = event.params.id;
 	const url = new URL(event.request.url);
 	const filter = url.searchParams.get('filter') ?? 'all';

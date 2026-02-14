@@ -9,6 +9,7 @@ import {
     TransactionType as TransactionTypeValues,
     WarehouseTransaction,
 } from '~/drizzle/schema';
+import { requireAuth } from '~/lib/require-auth';
 
 type WarehouseTransactionType = (typeof TransactionTypeValues)[number];
 
@@ -30,6 +31,7 @@ export const loadTransactionFormData = query(async () => {
 
 export const createTransaction = action(async (formData: FormData) => {
     'use server';
+    await requireAuth(['warehouse-user']);
 
     const getStringField = (key: string) => {
         const value = formData.get(key);

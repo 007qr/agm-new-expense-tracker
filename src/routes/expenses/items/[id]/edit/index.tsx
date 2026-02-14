@@ -3,6 +3,7 @@ import { action, createAsync, useSubmission, query, useParams } from '@solidjs/r
 import { db } from '~/drizzle/client';
 import { Entity, EntityType, EntityVariant, Transaction } from '~/drizzle/schema';
 import { eq, inArray } from 'drizzle-orm';
+import { requireAuth } from '~/lib/require-auth';
 
 // --- Types ---
 type VariantInput = {
@@ -81,6 +82,7 @@ export const loadItem = query(async (id: string) => {
 // --- Action ---
 export const updateItem = action(async (formData: FormData): Promise<ActionResponse> => {
     'use server';
+    await requireAuth(['expense-user']);
 
     const getStringField = (key: string) => (formData.get(key) as string)?.trim() ?? '';
     const id = getStringField('id');
