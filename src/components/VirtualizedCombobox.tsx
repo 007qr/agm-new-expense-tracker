@@ -115,7 +115,7 @@ export function VirtualizedCombobox(props: VirtualizedComboboxProps) {
 	const useVirtualization = createMemo(() => filteredOptions().length > 50);
 
 	return (
-		<div class="relative">
+		<div class="relative" data-combobox>
 			<div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all">
 				<label class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
 					{props.label}

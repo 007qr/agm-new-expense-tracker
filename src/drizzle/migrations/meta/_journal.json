@@ -8,6 +8,20 @@
       "when": 1769090943257,
       "tag": "0000_eager_king_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1739900000000,
+      "tag": "0001_create_transaction_detail_view",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1739900100000,
+      "tag": "0002_create_warehouse_transaction_detail_view",
+      "breakpoints": true
     }
   ]
 }

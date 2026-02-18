@@ -1,8 +1,7 @@
 import { type APIEvent } from '@solidjs/start/server';
-import { eq, and, gte, lte, or, desc, sql } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
+import { eq, and, getViewSelectedFields, gte, lte, or, desc } from 'drizzle-orm';
 import { db } from '~/drizzle/client';
-import { Transaction, Entity, Destination, TransportationCost, EntityVariant } from '~/drizzle/schema';
+import { TransactionDetail } from '~/drizzle/schema';
 import { auth } from '~/lib/auth';
 
 export async function GET(event: APIEvent) {
@@ -21,90 +20,23 @@ export async function GET(event: APIEvent) {
 	const dateRangeParam = url.searchParams.get('dateRange');
 	const dateRange = dateRangeParam && dateRangeParam !== 'null' ? JSON.parse(dateRangeParam) : null;
 
-	let dateFilter;
-	if (filter === '7days') {
-		const sevenDaysAgo = new Date();
-		sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-		dateFilter = gte(Transaction.created_at, sevenDaysAgo);
-	} else if (filter === '30days') {
-		const thirtyDaysAgo = new Date();
-		thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-		dateFilter = gte(Transaction.created_at, thirtyDaysAgo);
-	} else if (filter === 'custom' && dateRange) {
-		dateFilter = and(
-			gte(Transaction.created_at, new Date(dateRange.from + 'T00:00:00')),
-			lte(Transaction.created_at, new Date(dateRange.to + 'T23:59:59')),
-		);
-	}
-
-	const baseFilter = or(eq(Transaction.destination_id, dest), eq(Transaction.source_id, dest));
-	const filters = and(baseFilter, dateFilter);
-
-	const evAlias = alias(EntityVariant, 'ev');
-	const sourceAlias = alias(Destination, 'source');
-	const destinationAlias = alias(Destination, 'destination');
-
-	const variantDetails = sql<string>`
-		NULLIF(
-			TRIM(
-				COALESCE(
-					NULLIF(CONCAT_WS(' x ',
-						(CASE WHEN ${evAlias.length} IS NOT NULL AND ${evAlias.length}::numeric > 0 THEN TRIM(COALESCE(ROUND(${evAlias.length}::numeric, 2)::text, '') || ' ' || COALESCE(${evAlias.dimension_unit}, '')) ELSE NULL END),
-						(CASE WHEN ${evAlias.width} IS NOT NULL AND ${evAlias.width}::numeric > 0 THEN TRIM(COALESCE(ROUND(${evAlias.width}::numeric, 2)::text, '') || ' ' || COALESCE(${evAlias.dimension_unit}, '')) ELSE NULL END),
-						(CASE WHEN ${evAlias.height} IS NOT NULL AND ${evAlias.height}::numeric > 0 THEN TRIM(COALESCE(ROUND(${evAlias.height}::numeric, 2)::text, '') || ' ' || COALESCE(${evAlias.dimension_unit}, '')) ELSE NULL END)
-					), ''),
-					''
-				)
-				||
-				(CASE
-					WHEN
-						NULLIF(CONCAT_WS(' x ',
-							(CASE WHEN ${evAlias.length} IS NOT NULL AND ${evAlias.length}::numeric > 0 THEN 'L' END),
-							(CASE WHEN ${evAlias.width} IS NOT NULL AND ${evAlias.width}::numeric > 0 THEN 'W' END),
-							(CASE WHEN ${evAlias.height} IS NOT NULL AND ${evAlias.height}::numeric > 0 THEN 'H' END)
-						), '') IS NOT NULL
-						AND
-						(${evAlias.thickness} IS NOT NULL AND ${evAlias.thickness}::numeric > 0)
-					THEN ' thickness '
-					ELSE ''
-				END)
-				||
-				COALESCE(
-					NULLIF(
-						(CASE WHEN ${evAlias.thickness} IS NOT NULL AND ${evAlias.thickness}::numeric > 0 THEN TRIM(COALESCE(ROUND(${evAlias.thickness}::numeric, 2)::text, '') || ' ' || COALESCE(${evAlias.thickness_unit}, '')) ELSE NULL END),
-					''),
-					''
-				)
-			),
-		'')
-	`;
+	const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d; };
+	const dateFilter =
+		filter === '7days'  ? gte(TransactionDetail.created_at, daysAgo(7)) :
+		filter === '30days' ? gte(TransactionDetail.created_at, daysAgo(30)) :
+		filter === 'custom' && dateRange ? and(
+			gte(TransactionDetail.created_at, new Date(dateRange.from + 'T00:00:00')),
+			lte(TransactionDetail.created_at, new Date(dateRange.to + 'T23:59:59')),
+		) : undefined;
 
 	const results = await db
-		.select({
-			created_at: Transaction.created_at,
-			entity_name: Entity.name,
-			entity_variant: variantDetails,
-			source_name: sourceAlias.name,
-			destination_name: destinationAlias.name,
-			rate: Transaction.rate,
-			quantity: Transaction.quantity,
-			unit: Entity.unit,
-			amount: Transaction.amount,
-			payment_status: Transaction.payment_status,
-			vehicle_type: TransportationCost.vehicle_type,
-			reg_no: TransportationCost.reg_no,
-			transportation_cost: TransportationCost.cost,
-			source_id: Transaction.source_id,
-			destination_id: Transaction.destination_id,
-		})
-		.from(Transaction)
-		.leftJoin(Entity, eq(Transaction.entity_id, Entity.id))
-		.leftJoin(evAlias, eq(Transaction.entity_variant_id, evAlias.id))
-		.leftJoin(sourceAlias, eq(Transaction.source_id, sourceAlias.id))
-		.leftJoin(destinationAlias, eq(Transaction.destination_id, destinationAlias.id))
-		.leftJoin(TransportationCost, eq(Transaction.transportation_cost_id, TransportationCost.id))
-		.where(filters)
-		.orderBy(desc(Transaction.created_at));
+		.select(getViewSelectedFields(TransactionDetail))
+		.from(TransactionDetail)
+		.where(and(
+			or(eq(TransactionDetail.destination_id, dest), eq(TransactionDetail.source_id, dest)),
+			dateFilter,
+		))
+		.orderBy(desc(TransactionDetail.created_at));
 
 	const escapeCSV = (value: string | null | undefined): string => {
 		if (!value) return '';
@@ -133,7 +65,7 @@ export async function GET(event: APIEvent) {
 			escapeCSV(fromTo ?? ''),
 			Number(row.rate ?? 0).toFixed(2),
 			Number(row.quantity ?? 0).toFixed(2),
-			row.unit ?? '',
+			row.entity_unit ?? '',
 			Number(row.amount ?? 0).toFixed(2),
 			row.payment_status ?? '',
 			row.vehicle_type ?? '--',

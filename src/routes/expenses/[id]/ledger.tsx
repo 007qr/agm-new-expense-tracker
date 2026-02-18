@@ -1,10 +1,10 @@
 import { action, createAsync, query, redirect, useLocation, useParams, useSubmission } from '@solidjs/router';
-import { and, desc, eq, or, sql, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, getViewSelectedFields, or, sql, gte, lte } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { createSignal, For, Show, Suspense, createResource, useTransition } from 'solid-js';
 import DateRangePicker from '~/components/DateRangePicker';
 import { db } from '~/drizzle/client';
-import { Destination, Entity, Transaction, TransportationCost, EntityVariant } from '~/drizzle/schema';
+import { Destination, Transaction, TransactionDetail } from '~/drizzle/schema';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 import Breadcrumb from '~/components/Breadcrumb';
 import { loadTotalAmount } from './totalAmount';
@@ -21,100 +21,30 @@ export const loadTransactions = query(
         dateRange: { from: string; to: string } | null,
     ) => {
         'use server';
-        const entityFilter = entity?.trim();
-        let dateFilter;
-        // Use Date objects instead of SQL strings for better query planning
-        if (filter === '7days') {
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            dateFilter = gte(Transaction.created_at, sevenDaysAgo);
-        } else if (filter === '30days') {
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            dateFilter = gte(Transaction.created_at, thirtyDaysAgo);
-        } else if (filter === 'custom' && dateRange) {
-            dateFilter = and(
-                gte(Transaction.created_at, new Date(dateRange.from + 'T00:00:00')),
-                lte(Transaction.created_at, new Date(dateRange.to + 'T23:59:59')),
-            );
-        }
-        const baseFilter = or(eq(Transaction.destination_id, dest), eq(Transaction.source_id, dest));
-        const filters = and(
-            baseFilter,
-            entityFilter ? eq(Transaction.entity_id, entityFilter) : undefined,
-            dateFilter,
-        );
-        const evAlias = alias(EntityVariant, 'ev');
-        const sourceAlias = alias(Destination, 'source');
-        const destinationAlias = alias(Destination, 'destination');
+        const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d; };
+        const dateFilter =
+            filter === '7days'  ? gte(TransactionDetail.created_at, daysAgo(7)) :
+            filter === '30days' ? gte(TransactionDetail.created_at, daysAgo(30)) :
+            filter === 'custom' && dateRange ? and(
+                gte(TransactionDetail.created_at, new Date(dateRange.from + 'T00:00:00')),
+                lte(TransactionDetail.created_at, new Date(dateRange.to + 'T23:59:59')),
+            ) : undefined;
+
         const currentDestAlias = alias(Destination, 'current_dest');
-        // Robust variant formatting SQL based on warehouse query pattern
-        const variantDetails = sql<string>`
-            NULLIF(
-                TRIM(
-                    COALESCE(
-                        NULLIF(CONCAT_WS(' x ',
-                            (CASE WHEN ${evAlias.length} IS NOT NULL AND ${evAlias.length}::numeric > 0 THEN TRIM(COALESCE(ROUND(${evAlias.length}::numeric, 2)::text, '') || ' ' || COALESCE(${evAlias.dimension_unit}, '')) ELSE NULL END),
-                            (CASE WHEN ${evAlias.width} IS NOT NULL AND ${evAlias.width}::numeric > 0 THEN TRIM(COALESCE(ROUND(${evAlias.width}::numeric, 2)::text, '') || ' ' || COALESCE(${evAlias.dimension_unit}, '')) ELSE NULL END),
-                            (CASE WHEN ${evAlias.height} IS NOT NULL AND ${evAlias.height}::numeric > 0 THEN TRIM(COALESCE(ROUND(${evAlias.height}::numeric, 2)::text, '') || ' ' || COALESCE(${evAlias.dimension_unit}, '')) ELSE NULL END)
-                        ), ''),
-                        ''
-                    )
-                    ||
-                    (CASE
-                        WHEN
-                            NULLIF(CONCAT_WS(' x ',
-                                (CASE WHEN ${evAlias.length} IS NOT NULL AND ${evAlias.length}::numeric > 0 THEN 'L' END),
-                                (CASE WHEN ${evAlias.width} IS NOT NULL AND ${evAlias.width}::numeric > 0 THEN 'W' END),
-                                (CASE WHEN ${evAlias.height} IS NOT NULL AND ${evAlias.height}::numeric > 0 THEN 'H' END)
-                            ), '') IS NOT NULL
-                            AND
-                            (${evAlias.thickness} IS NOT NULL AND ${evAlias.thickness}::numeric > 0)
-                        THEN ' thickness '
-                        ELSE ''
-                    END)
-                    ||
-                    COALESCE(
-                        NULLIF(
-                            (CASE WHEN ${evAlias.thickness} IS NOT NULL AND ${evAlias.thickness}::numeric > 0 THEN TRIM(COALESCE(ROUND(${evAlias.thickness}::numeric, 2)::text, '') || ' ' || COALESCE(${evAlias.thickness_unit}, '')) ELSE NULL END),
-                        ''),
-                        ''
-                    )
-                ),
-            '')
-        `;
-        // Single query with window function for total count
         const results = await db
             .select({
-                id: Transaction.id,
-                created_at: Transaction.created_at,
-                type: Transaction.type,
-                quantity: Transaction.quantity,
-                rate: Transaction.rate,
-                amount: Transaction.amount,
-                payment_status: Transaction.payment_status,
-                entity_name: Entity.name,
-                unit: Entity.unit,
-                entity_variant: variantDetails,
-                source_name: sourceAlias.name,
-                destination_name: destinationAlias.name,
-                source_id: Transaction.source_id,
-                destination_id: Transaction.destination_id,
-                vehicle_type: TransportationCost.vehicle_type,
-                reg_no: TransportationCost.reg_no,
-                transportation_cost: TransportationCost.cost,
+                ...getViewSelectedFields(TransactionDetail),
                 destination_display: currentDestAlias.name,
                 total_count: sql<number>`COUNT(*) OVER()`.as('total_count'),
             })
-            .from(Transaction)
-            .leftJoin(Entity, eq(Transaction.entity_id, Entity.id))
-            .leftJoin(evAlias, eq(Transaction.entity_variant_id, evAlias.id))
-            .leftJoin(sourceAlias, eq(Transaction.source_id, sourceAlias.id))
-            .leftJoin(destinationAlias, eq(Transaction.destination_id, destinationAlias.id))
-            .leftJoin(TransportationCost, eq(Transaction.transportation_cost_id, TransportationCost.id))
+            .from(TransactionDetail)
             .leftJoin(currentDestAlias, eq(currentDestAlias.id, dest))
-            .where(filters)
-            .orderBy(desc(Transaction.created_at))
+            .where(and(
+                or(eq(TransactionDetail.destination_id, dest), eq(TransactionDetail.source_id, dest)),
+                entity?.trim() ? eq(TransactionDetail.entity_id, entity.trim()) : undefined,
+                dateFilter,
+            ))
+            .orderBy(desc(TransactionDetail.created_at))
             .limit(limit)
             .offset(offset);
         return {
@@ -354,7 +284,7 @@ export default function ExpenseLedgerPage() {
                                                         {Number(tx.rate).toFixed(2)}
                                                     </td>
                                                     <td class="py-3 px-3 text-right text-sm text-zinc-700 whitespace-nowrap tabular-nums">
-                                                        {Number(tx.quantity).toFixed(2)} {tx.unit}
+                                                        {Number(tx.quantity).toFixed(2)} {tx.entity_unit}
                                                     </td>
                                                     <td class="py-3 px-3 text-right text-sm text-black font-semibold whitespace-nowrap tabular-nums">
                                                         {Number(tx.amount).toFixed(2)}

@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { relations, sql } from 'drizzle-orm';
-import { bigint, boolean, index, numeric, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { bigint, boolean, index, numeric, pgEnum, pgTable, pgView, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const PaymentStatus = ['paid', 'pending', 'advance'] as const;
 export const TransactionType = ['credit', 'debit'] as const;
@@ -99,6 +99,47 @@ export const EntityVariant = pgTable(
     },
     (table) => [index('entity_variant_entity_id_idx').on(table.entity_id)],
 );
+
+export const TransactionDetail = pgView('transaction_detail', {
+    id: text('id'),
+    created_at: timestamp('created_at', { withTimezone: true }),
+    updated_at: timestamp('updated_at', { withTimezone: true }),
+    type: transactionTypeEnum('type'),
+    quantity: numeric('quantity', { precision: 18, scale: 6 }),
+    rate: numeric('rate', { precision: 18, scale: 6 }),
+    amount: numeric('amount', { precision: 18, scale: 2 }),
+    payment_status: paymentStatusEnum('payment_status'),
+    entity_id: text('entity_id'),
+    entity_variant_id: text('entity_variant_id'),
+    source_id: text('source_id'),
+    destination_id: text('destination_id'),
+    transportation_cost_id: text('transportation_cost_id'),
+    entity_name: text('entity_name'),
+    entity_unit: text('entity_unit'),
+    entity_variant: text('entity_variant'),
+    source_name: text('source_name'),
+    destination_name: text('destination_name'),
+    vehicle_type: text('vehicle_type'),
+    reg_no: text('reg_no'),
+    transportation_cost: numeric('transportation_cost', { precision: 18, scale: 2 }),
+}).existing();
+
+export const WarehouseTransactionDetail = pgView('warehouse_transaction_detail', {
+    id: text('id'),
+    created_at: timestamp('created_at', { withTimezone: true }),
+    updated_at: timestamp('updated_at', { withTimezone: true }),
+    type: transactionTypeEnum('type'),
+    quantity: numeric('quantity', { precision: 18, scale: 6 }),
+    entity_id: text('entity_id'),
+    entity_variant_id: text('entity_variant_id'),
+    source_id: text('source_id'),
+    destination_id: text('destination_id'),
+    entity_name: text('entity_name'),
+    entity_unit: text('entity_unit'),
+    entity_variant: text('entity_variant'),
+    source_name: text('source_name'),
+    destination_name: text('destination_name'),
+}).existing();
 
 export const WarehouseTransaction = pgTable(
     'warehouse_transaction',

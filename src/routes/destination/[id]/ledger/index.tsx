@@ -1,9 +1,8 @@
 import { action, createAsync, query, redirect, useLocation, useParams, useSubmission } from '@solidjs/router';
 import { and, desc, eq, or, sql } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
 import { createEffect, createSignal, For, Show, Suspense } from 'solid-js';
 import { db } from '~/drizzle/client';
-import { Destination, EntityVariantWarehouse, EntityWarehouse, WarehouseTransaction } from '~/drizzle/schema';
+import { Destination, WarehouseTransaction, WarehouseTransactionDetail } from '~/drizzle/schema';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 import { requireAuth } from '~/lib/require-auth';
 
@@ -12,73 +11,32 @@ export const loadTransactions = query(async (dest: string, entity: string, limit
 
     const entityFilter = entity?.trim();
 
-    const variantDetails = sql<string>`
-        NULLIF(
-            TRIM(
-                COALESCE(
-                    NULLIF(CONCAT_WS(' x ',
-                        (CASE WHEN ${EntityVariantWarehouse.length} IS NOT NULL AND ${EntityVariantWarehouse.length}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.length}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')) ELSE NULL END),
-                        (CASE WHEN ${EntityVariantWarehouse.width} IS NOT NULL AND ${EntityVariantWarehouse.width}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.width}::text, '')  || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')) ELSE NULL END),
-                        (CASE WHEN ${EntityVariantWarehouse.height} IS NOT NULL AND ${EntityVariantWarehouse.height}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.height}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')) ELSE NULL END)
-                    ), ''),
-                    ''
-                )
-                ||
-                (CASE
-                    WHEN
-                        NULLIF(CONCAT_WS(' x ',
-                            (CASE WHEN ${EntityVariantWarehouse.length} IS NOT NULL AND ${EntityVariantWarehouse.length}::numeric > 0 THEN 'L' END),
-                            (CASE WHEN ${EntityVariantWarehouse.width} IS NOT NULL AND ${EntityVariantWarehouse.width}::numeric > 0 THEN 'W' END),
-                            (CASE WHEN ${EntityVariantWarehouse.height} IS NOT NULL AND ${EntityVariantWarehouse.height}::numeric > 0 THEN 'H' END)
-                        ), '') IS NOT NULL
-                        AND
-                        (${EntityVariantWarehouse.thickness} IS NOT NULL AND ${EntityVariantWarehouse.thickness}::numeric > 0)
-                    THEN ' thickness '
-                    ELSE ''
-                END)
-                ||
-                COALESCE(
-                    NULLIF(
-                        (CASE WHEN ${EntityVariantWarehouse.thickness} IS NOT NULL AND ${EntityVariantWarehouse.thickness}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.thickness}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.thickness_unit}, '')) ELSE NULL END),
-                    ''),
-                    ''
-                )
-            ),
-        '')
-    `;
-
-    const sourceDestination = alias(Destination, 'source_destination');
-    const targetDestination = alias(Destination, 'target_destination');
-    const baseFilter = or(eq(WarehouseTransaction.destination_id, dest), eq(WarehouseTransaction.source_id, dest));
-    const filters = entityFilter ? and(baseFilter, eq(WarehouseTransaction.entity_id, entityFilter)) : baseFilter;
+    const baseFilter = or(eq(WarehouseTransactionDetail.destination_id, dest), eq(WarehouseTransactionDetail.source_id, dest));
+    const filters = entityFilter ? and(baseFilter, eq(WarehouseTransactionDetail.entity_id, entityFilter)) : baseFilter;
 
     const transactions = await db
         .select({
-            id: WarehouseTransaction.id,
-            created_at: WarehouseTransaction.created_at,
-            type: WarehouseTransaction.type,
-            quantity: WarehouseTransaction.quantity,
-            entity_name: EntityWarehouse.name,
-            unit: EntityWarehouse.unit,
-            variant_formatted: variantDetails,
-            source_name: sourceDestination.name,
-            destination_name: targetDestination.name,
-            source_id: WarehouseTransaction.source_id,
-            destination_id: WarehouseTransaction.destination_id,
+            id: WarehouseTransactionDetail.id,
+            created_at: WarehouseTransactionDetail.created_at,
+            type: WarehouseTransactionDetail.type,
+            quantity: WarehouseTransactionDetail.quantity,
+            entity_name: WarehouseTransactionDetail.entity_name,
+            unit: WarehouseTransactionDetail.entity_unit,
+            variant_formatted: WarehouseTransactionDetail.entity_variant,
+            source_name: WarehouseTransactionDetail.source_name,
+            destination_name: WarehouseTransactionDetail.destination_name,
+            source_id: WarehouseTransactionDetail.source_id,
+            destination_id: WarehouseTransactionDetail.destination_id,
         })
-        .from(WarehouseTransaction)
-        .leftJoin(EntityWarehouse, eq(WarehouseTransaction.entity_id, EntityWarehouse.id))
-        .leftJoin(EntityVariantWarehouse, eq(WarehouseTransaction.entity_variant_id, EntityVariantWarehouse.id))
-        .leftJoin(sourceDestination, eq(WarehouseTransaction.source_id, sourceDestination.id))
-        .leftJoin(targetDestination, eq(WarehouseTransaction.destination_id, targetDestination.id))
+        .from(WarehouseTransactionDetail)
         .where(filters)
-        .orderBy(desc(WarehouseTransaction.created_at))
+        .orderBy(desc(WarehouseTransactionDetail.created_at))
         .limit(limit)
         .offset(offset);
 
     const totalCount = await db
         .select({ total: sql<number>`COUNT(*)`.as('total') })
-        .from(WarehouseTransaction)
+        .from(WarehouseTransactionDetail)
         .where(filters)
         .then((rows) => rows[0]?.total ?? 0);
 

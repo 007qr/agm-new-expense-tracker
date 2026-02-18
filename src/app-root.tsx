@@ -1,8 +1,10 @@
-import { createMemo, JSX, Show, Suspense } from 'solid-js';
+import { createMemo, createSignal, JSX, Show, Suspense } from 'solid-js';
 import { useLocation } from '@solidjs/router';
 import { ComponentProps } from 'solid-js';
 import Sidebar, { SidebarItem } from './components/Sidebar';
 import { authClient } from '~/lib/auth-client';
+import QuickEntryDialog, { type QuickEntryFormData } from './components/QuickEntryDialog';
+import { loadFormData } from '~/routes/expenses/new/index';
 
 const PUBLIC_ROUTES = new Set(['/login', '/signup']);
 
@@ -36,6 +38,36 @@ export default function AppRoot(props: { children: JSX.Element }) {
     const isPublicRoute = createMemo(() => PUBLIC_ROUTES.has(location.pathname));
     const showSidebar = createMemo(() => !isPublicRoute());
 
+    const [quickEntryOpen, setQuickEntryOpen] = createSignal(false);
+    const [quickEntryLoading, setQuickEntryLoading] = createSignal(false);
+    const [quickEntryData, setQuickEntryData] = createSignal<QuickEntryFormData | null>(null);
+
+    const canQuickEntry = createMemo(() => {
+        const role = userRole();
+        return role === 'expense-user' || role === 'admin';
+    });
+
+    const handleQuickEntry = async () => {
+        // Cached: open immediately, background-refresh for next time
+        if (quickEntryData()) {
+            setQuickEntryOpen(true);
+            loadFormData().then(setQuickEntryData);
+            return;
+        }
+        // First load: show spinner on button, fetch, then open
+        setQuickEntryLoading(true);
+        try {
+            const data = await loadFormData();
+            setQuickEntryData(data);
+            setQuickEntryOpen(true);
+        } finally {
+            setQuickEntryLoading(false);
+        }
+    };
+
+    /** Call this to invalidate cached data (e.g. after creating a new item/destination) */
+    const invalidateQuickEntryCache = () => setQuickEntryData(null);
+
     const navigationItems = createMemo(() => {
         const role = userRole();
         if (role === 'admin') {
@@ -53,7 +85,11 @@ export default function AppRoot(props: { children: JSX.Element }) {
     return (
         <div class="flex h-screen bg-brand text-secondary">
             <Show when={showSidebar()}>
-                <Sidebar items={navigationItems()} />
+                <Sidebar
+                    items={navigationItems()}
+                    onQuickEntry={canQuickEntry() ? handleQuickEntry : undefined}
+                    quickEntryLoading={quickEntryLoading()}
+                />
             </Show>
 
             <Suspense fallback={<div class="p-8">Loading content...</div>}>
@@ -61,6 +97,14 @@ export default function AppRoot(props: { children: JSX.Element }) {
                     <div class="mx-auto px-25">{props.children}</div>
                 </main>
             </Suspense>
+
+            <Show when={canQuickEntry() && quickEntryData()}>
+                <QuickEntryDialog
+                    open={quickEntryOpen()}
+                    onOpenChange={setQuickEntryOpen}
+                    formData={quickEntryData()!}
+                />
+            </Show>
         </div>
     );
 }

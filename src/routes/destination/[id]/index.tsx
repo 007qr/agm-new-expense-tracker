@@ -1,86 +1,47 @@
 import { query, createAsync, useNavigate, useParams, A } from '@solidjs/router';
 import { eq, or, sql } from 'drizzle-orm';
 import { db } from '~/drizzle/client';
-import { Destination, EntityVariantWarehouse, EntityWarehouse, WarehouseTransaction } from '~/drizzle/schema';
+import { Destination, WarehouseTransactionDetail } from '~/drizzle/schema';
 import { createEffect, createSignal, For, Show, Suspense } from 'solid-js';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 
 export const loadEntitiesForDestination = query(async (dest: string, limit: number, offset: number) => {
     'use server';
 
-    // 1. Define the formatted string logic
-    const variantDetails = sql<string>`
-        NULLIF(
-            TRIM(
-                COALESCE(
-                    NULLIF(CONCAT_WS(' x ',
-                        (CASE WHEN ${EntityVariantWarehouse.length} IS NOT NULL AND ${EntityVariantWarehouse.length}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.length}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')) ELSE NULL END),
-                        (CASE WHEN ${EntityVariantWarehouse.width} IS NOT NULL AND ${EntityVariantWarehouse.width}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.width}::text, '')  || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')) ELSE NULL END),
-                        (CASE WHEN ${EntityVariantWarehouse.height} IS NOT NULL AND ${EntityVariantWarehouse.height}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.height}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.dimension_unit}, '')) ELSE NULL END)
-                    ), ''),
-                    ''
-                )
-                ||
-                (CASE
-                    WHEN
-                        NULLIF(CONCAT_WS(' x ',
-                            (CASE WHEN ${EntityVariantWarehouse.length} IS NOT NULL AND ${EntityVariantWarehouse.length}::numeric > 0 THEN 'L' END),
-                            (CASE WHEN ${EntityVariantWarehouse.width} IS NOT NULL AND ${EntityVariantWarehouse.width}::numeric > 0 THEN 'W' END),
-                            (CASE WHEN ${EntityVariantWarehouse.height} IS NOT NULL AND ${EntityVariantWarehouse.height}::numeric > 0 THEN 'H' END)
-                        ), '') IS NOT NULL
-                        AND
-                        (${EntityVariantWarehouse.thickness} IS NOT NULL AND ${EntityVariantWarehouse.thickness}::numeric > 0)
-                    THEN ' thickness '
-                    ELSE ''
-                END)
-                ||
-                COALESCE(
-                    NULLIF(
-                        (CASE WHEN ${EntityVariantWarehouse.thickness} IS NOT NULL AND ${EntityVariantWarehouse.thickness}::numeric > 0 THEN TRIM(COALESCE(${EntityVariantWarehouse.thickness}::text, '') || ' ' || COALESCE(${EntityVariantWarehouse.thickness_unit}, '')) ELSE NULL END),
-                    ''),
-                    ''
-                )
-            ),
-        '')
-    `;
-
-    // 2. Perform the heavy aggregation on IDs ONLY (Fastest operation)
+    // Aggregate quantities per entity+variant using the view (variant is pre-computed)
     const sq = db.$with('sq').as(
         db
             .select({
-                entity_id: WarehouseTransaction.entity_id,
-                entity_variant_id: WarehouseTransaction.entity_variant_id,
+                entity_id: WarehouseTransactionDetail.entity_id,
+                entity_variant_id: WarehouseTransactionDetail.entity_variant_id,
+                entity_name: sql<string>`MIN(${WarehouseTransactionDetail.entity_name})`.as('entity_name'),
+                variant_formatted: sql<string>`MIN(${WarehouseTransactionDetail.entity_variant})`.as('variant_formatted'),
                 net_quantity: sql<number>`SUM(
                 CASE
-                    WHEN ${WarehouseTransaction.destination_id} = ${dest}
-                    THEN COALESCE(CAST(${WarehouseTransaction.quantity} as REAL), 0)
-                    WHEN ${WarehouseTransaction.source_id} = ${dest}
-                    THEN -COALESCE(CAST(${WarehouseTransaction.quantity} as REAL), 0)
+                    WHEN ${WarehouseTransactionDetail.destination_id} = ${dest}
+                    THEN COALESCE(CAST(${WarehouseTransactionDetail.quantity} as REAL), 0)
+                    WHEN ${WarehouseTransactionDetail.source_id} = ${dest}
+                    THEN -COALESCE(CAST(${WarehouseTransactionDetail.quantity} as REAL), 0)
                     ELSE 0
                 END)`.as('net_quantity'),
             })
-            .from(WarehouseTransaction)
-            .where(or(eq(WarehouseTransaction.destination_id, dest), eq(WarehouseTransaction.source_id, dest)))
-            .groupBy(WarehouseTransaction.entity_id, WarehouseTransaction.entity_variant_id),
+            .from(WarehouseTransactionDetail)
+            .where(or(eq(WarehouseTransactionDetail.destination_id, dest), eq(WarehouseTransactionDetail.source_id, dest)))
+            .groupBy(WarehouseTransactionDetail.entity_id, WarehouseTransactionDetail.entity_variant_id),
     );
 
-    // 3. Join the lightweight result to the heavy tables
     const rows = await db
         .with(sq)
         .select({
             entity_id: sq.entity_id,
             entity_variant_id: sq.entity_variant_id,
             net_quantity: sq.net_quantity,
-            entity_name: EntityWarehouse.name,
-            variant_formatted: variantDetails,
+            entity_name: sq.entity_name,
+            variant_formatted: sq.variant_formatted,
         })
         .from(sq)
-        .leftJoin(EntityWarehouse, eq(sq.entity_id, EntityWarehouse.id))
-        .leftJoin(EntityVariantWarehouse, eq(sq.entity_variant_id, EntityVariantWarehouse.id))
         .limit(limit)
         .offset(offset);
-    // Optional: Filter out zero quantities to keep the UI clean
-    // .where(sql`${sq.net_quantity} != 0`);
 
     const totalCount = await db
         .with(sq)

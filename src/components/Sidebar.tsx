@@ -12,6 +12,8 @@ export type SidebarItem = {
 
 type SidebarProps = {
     items: SidebarItem[];
+    onQuickEntry?: () => void;
+    quickEntryLoading?: boolean;
 };
 
 const logoutAction = action(async () => {
@@ -103,6 +105,37 @@ const Sidebar: Component<SidebarProps> = (props) => {
                 </For>
             </nav>
 
+            {/* --- Quick Entry Button --- */}
+            <Show when={props.onQuickEntry}>
+                <div class="px-3 pb-2">
+                    <button
+                        type="button"
+                        disabled={props.quickEntryLoading}
+                        onClick={() => props.onQuickEntry?.()}
+                        class="group flex items-center gap-3 w-full px-3 py-2.5 rounded-lg bg-black text-white hover:bg-black/90 disabled:opacity-70 transition-all duration-200 overflow-hidden whitespace-nowrap"
+                        title="Quick Entry"
+                    >
+                        <Show when={!props.quickEntryLoading} fallback={<IconSpinner class="w-5 h-5 shrink-0 animate-spin" />}>
+                            <IconPlus class="w-5 h-5 shrink-0" />
+                        </Show>
+                        <span
+                            class="font-medium transition-all duration-300"
+                            classList={{
+                                'opacity-0 translate-x-2': isCollapsed(),
+                                'opacity-100 translate-x-0': !isCollapsed(),
+                            }}
+                        >
+                            Quick Entry
+                        </span>
+                        <Show when={isCollapsed()}>
+                            <div class="absolute left-16 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap">
+                                Quick Entry
+                            </div>
+                        </Show>
+                    </button>
+                </div>
+            </Show>
+
             {/* --- Footer / User / Logout --- */}
             <div class="p-3 border-t border-black/10 shrink-0">
                 <form action={logoutAction} method="post">
@@ -140,6 +173,19 @@ const IconLogOut = (p: any) => (
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
         <polyline points="16 17 21 12 16 7" />
         <line x1="21" x2="9" y1="12" y2="12" />
+    </svg>
+);
+
+const IconSpinner = (p: any) => (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
+);
+
+const IconPlus = (p: any) => (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" x2="12" y1="5" y2="19" />
+        <line x1="5" x2="19" y1="12" y2="12" />
     </svg>
 );
 
