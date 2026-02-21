@@ -94,7 +94,7 @@ export default function AppRoot(props: { children: JSX.Element }) {
 
             <Suspense fallback={<div class="p-8">Loading content...</div>}>
                 <main class="flex-1 overflow-y-auto p-2">
-                    <div class="mx-auto px-25">{props.children}</div>
+                    <div class="mx-auto px-10">{props.children}</div>
                 </main>
             </Suspense>
 

@@ -29,13 +29,16 @@ export const loadTotalAmount = query(
         }
 
         const baseFilter = and(
-            eq(Transaction.destination_id, dest),
+            eq(Transaction.source_id, dest),
             dateFilter
         );
 
         const totalAmount = await db
             .select({
-                total: sql<number>`SUM(COALESCE(${Transaction.amount}, 0) + COALESCE(${TransportationCost.cost}, 0))`,
+                total: sql<number>`SUM(
+                    CASE WHEN ${Transaction.type} = 'credit' THEN 1 ELSE -1 END
+                    * (COALESCE(${Transaction.amount}, 0) + COALESCE(${TransportationCost.cost}, 0))
+                )`,
             })
             .from(Transaction)
             .leftJoin(TransportationCost, eq(Transaction.transportation_cost_id, TransportationCost.id))

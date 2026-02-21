@@ -31,17 +31,18 @@ export const createExpense = action(async (formData: FormData) => {
     };
     const getBooleanField = (key: string) => formData.get(key) === 'on';
 
-    const destinationId = getStringField('destination_id');
     const entityId = getStringField('entity_id');
     const entityVariantId = getStringField('entity_variant_id');
     const quantity = getNumericField('quantity');
     const rate = getNumericField('rate');
     const paymentStatus = getStringField('payment_status') as (typeof PaymentStatus)[number];
     const sourceId = getStringField('source_id');
+    const transactionType = getStringField('transaction_type') as 'credit' | 'debit';
     const dateStr = getStringField('date');
     const addTransportationCost = getBooleanField('add_transportation_cost');
 
-    if (!destinationId || !entityId || !paymentStatus || !sourceId) return { error: 'Missing required fields.' };
+    if (!entityId || !paymentStatus || !sourceId) return { error: 'Missing required fields.' };
+    if (transactionType !== 'credit' && transactionType !== 'debit') return { error: 'Invalid transaction type.' };
     if (quantity === null || quantity <= 0) return { error: 'Quantity must be a positive number.' };
     if (rate === null || rate < 0) return { error: 'Rate must be a positive number or zero.' };
 
@@ -75,12 +76,11 @@ export const createExpense = action(async (formData: FormData) => {
             id: 'tran_' + createId(),
             entity_id: entityId,
             entity_variant_id: entityVariantId || null,
-            destination_id: destinationId,
             source_id: sourceId,
             payment_status: paymentStatus,
             transportation_cost_id: transportationCostId, // Will be undefined if not created
             quantity: String(quantity),
-            type: 'debit',
+            type: transactionType,
             rate: String(rate),
             amount: String(amount),
             ...(dateStr ? { created_at: new Date(dateStr) } : {}),
@@ -140,9 +140,9 @@ function FormContent() {
             </div>
 
             <form action={createExpense} method="post" class="space-y-8">
-                {/* Section for Route */}
+                {/* Section for Source & Type */}
                 <div class="space-y-5">
-                    <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Route</h2>
+                    <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Source</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <VirtualizedCombobox
                             name="source_id"
@@ -151,13 +151,11 @@ function FormContent() {
                             required
                             options={destinations()}
                         />
-                        <VirtualizedCombobox
-                            name="destination_id"
-                            label="Paid To (Destination)"
-                            placeholder="Search destination..."
-                            required
-                            options={destinations()}
-                        />
+                        <SelectInput name="transaction_type" label="Transaction Type" required>
+                            <option value="" disabled selected>Select type...</option>
+                            <option value="debit">Debit</option>
+                            <option value="credit">Credit</option>
+                        </SelectInput>
                     </div>
                 </div>
 

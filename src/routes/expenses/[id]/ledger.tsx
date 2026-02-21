@@ -1,10 +1,9 @@
 import { action, createAsync, query, redirect, useLocation, useParams, useSubmission } from '@solidjs/router';
-import { and, desc, eq, getViewSelectedFields, or, sql, gte, lte } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
-import { createSignal, For, Show, Suspense, createResource, useTransition } from 'solid-js';
+import { and, desc, eq, getViewSelectedFields, sql, gte, lte } from 'drizzle-orm';
+import { createSignal, createEffect, onCleanup, For, Show, Suspense, useTransition } from 'solid-js';
 import DateRangePicker from '~/components/DateRangePicker';
 import { db } from '~/drizzle/client';
-import { Destination, Transaction, TransactionDetail } from '~/drizzle/schema';
+import { Transaction, TransactionDetail } from '~/drizzle/schema';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 import Breadcrumb from '~/components/Breadcrumb';
 import { loadTotalAmount } from './totalAmount';
@@ -30,17 +29,14 @@ export const loadTransactions = query(
                 lte(TransactionDetail.created_at, new Date(dateRange.to + 'T23:59:59')),
             ) : undefined;
 
-        const currentDestAlias = alias(Destination, 'current_dest');
         const results = await db
             .select({
                 ...getViewSelectedFields(TransactionDetail),
-                destination_display: currentDestAlias.name,
                 total_count: sql<number>`COUNT(*) OVER()`.as('total_count'),
             })
             .from(TransactionDetail)
-            .leftJoin(currentDestAlias, eq(currentDestAlias.id, dest))
             .where(and(
-                or(eq(TransactionDetail.destination_id, dest), eq(TransactionDetail.source_id, dest)),
+                eq(TransactionDetail.source_id, dest),
                 entity?.trim() ? eq(TransactionDetail.entity_id, entity.trim()) : undefined,
                 dateFilter,
             ))
@@ -49,7 +45,7 @@ export const loadTransactions = query(
             .offset(offset);
         return {
             transactions: results,
-            destination: results[0]?.destination_display ?? 'Unknown',
+            destination: results[0]?.source_name ?? 'Unknown',
             totalCount: results[0]?.total_count ?? 0,
         };
     },
@@ -110,19 +106,7 @@ export default function ExpenseLedgerPage() {
                         showTotal={showTotal()}
                         onShowTotal={() => setShowTotal(true)}
                     />
-                    <div>
-                        <a
-                            href={`/api/expenses/${params.id}/export?filter=${activeFilter()}&dateRange=${encodeURIComponent(JSON.stringify(serializedDateRange()))}`}
-                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm rounded-lg transition-colors flex items-center gap-2 shadow-sm"
-                            title="Export filtered expenses to CSV"
-                            download
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Export CSV
-                        </a>
-                    </div>
+                    <ExportPanel destinationId={params.id} />
                 </div>
             </div>
             {/* Improved Filter UI */}
@@ -254,7 +238,7 @@ export default function ExpenseLedgerPage() {
                                 <Show when={(data()?.transactions ?? []).length > 0} fallback={<EmptyState />}>
                                     <For each={data()?.transactions ?? []}>
                                         {(tx) => {
-                                            const isInward = tx.destination_id === params.id;
+                                            const isCredit = tx.type === 'credit';
                                             return (
                                                 <tr class="group hover:bg-zinc-50/80">
                                                     <td class="py-3 px-3 text-sm text-zinc-700 whitespace-nowrap sticky left-0 bg-white group-hover:bg-zinc-50/80 z-10">
@@ -264,11 +248,11 @@ export default function ExpenseLedgerPage() {
                                                         <span
                                                             class="px-2 py-0.5 text-xs font-semibold rounded-full"
                                                             classList={{
-                                                                'bg-green-100 text-green-700': isInward,
-                                                                'bg-orange-100 text-orange-700': !isInward,
+                                                                'bg-green-100 text-green-700': isCredit,
+                                                                'bg-orange-100 text-orange-700': !isCredit,
                                                             }}
                                                         >
-                                                            {isInward ? 'Inward' : 'Outward'}
+                                                            {isCredit ? 'Credit' : 'Debit'}
                                                         </span>
                                                     </td>
                                                     <td class="py-3 px-3 text-sm text-black font-medium whitespace-nowrap">
@@ -278,7 +262,7 @@ export default function ExpenseLedgerPage() {
                                                         {tx.entity_variant || '--'}
                                                     </td>
                                                     <td class="py-3 px-3 text-sm text-zinc-700 whitespace-nowrap">
-                                                        {isInward ? tx.source_name : tx.destination_name}
+                                                        {tx.source_name}
                                                     </td>
                                                     <td class="py-3 px-3 text-right text-sm text-zinc-700 whitespace-nowrap tabular-nums">
                                                         {Number(tx.rate).toFixed(2)}
@@ -405,6 +389,180 @@ type TotalAmountDisplayProps = {
     showTotal: boolean;
     onShowTotal: () => void;
 };
+
+// ── ExportPanel ────────────────────────────────────────────────────
+
+type ExportPanelProps = { destinationId: string };
+
+function ExportPanel(props: ExportPanelProps) {
+    const [open, setOpen]               = createSignal(false);
+    const [fromDate, setFromDate]       = createSignal('');
+    const [toDate, setToDate]           = createSignal('');
+    const [dlLoading, setDlLoading]     = createSignal(false);
+    const [wkLoading, setWkLoading]     = createSignal(false);
+    const [error, setError]             = createSignal('');
+    let containerRef!: HTMLDivElement;
+
+    createEffect(() => {
+        if (!open()) return;
+        const handler = (e: MouseEvent) => {
+            if (!containerRef?.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        onCleanup(() => document.removeEventListener('mousedown', handler));
+    });
+
+    const datesValid = () => !!fromDate() && !!toDate() && fromDate() <= toDate();
+
+    const triggerDownload = async (url: string, filename: string, setLoading: (v: boolean) => void) => {
+        setError('');
+        setLoading(true);
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Export failed');
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+            setOpen(false);
+        } catch {
+            setError('Export failed. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDownload = () => {
+        const url = `/api/expenses/${props.destinationId}/export?format=simple&from=${fromDate()}&to=${toDate()}`;
+        triggerDownload(url, `expenses-${fromDate()}-to-${toDate()}.csv`, setDlLoading);
+    };
+
+    const handleWeekly = () => {
+        const url = `/api/expenses/${props.destinationId}/export?format=weekly&from=${fromDate()}&to=${toDate()}`;
+        triggerDownload(url, `weekly-report-${fromDate()}-to-${toDate()}.csv`, setWkLoading);
+    };
+
+    return (
+        <div ref={containerRef} class="relative">
+            {/* Trigger */}
+            <button
+                onClick={() => { setOpen(!open()); setError(''); }}
+                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm rounded-lg transition-colors flex items-center gap-2 shadow-sm"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export
+                <svg viewBox="0 0 20 20" fill="currentColor" class={`h-3 w-3 transition-transform duration-150 ${open() ? 'rotate-180' : ''}`}>
+                    <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                </svg>
+            </button>
+
+            {/* Popover */}
+            <Show when={open()}>
+                <div class="absolute right-0 top-full mt-2 w-80 bg-white border border-zinc-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                    {/* Header */}
+                    <div class="flex items-center justify-between px-4 pt-4 pb-3">
+                        <span class="text-sm font-semibold text-black">Select Date Range</span>
+                        <button
+                            onClick={() => setOpen(false)}
+                            class="text-zinc-400 hover:text-black rounded p-0.5 transition-colors"
+                            aria-label="Close"
+                        >
+                            <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    {/* Date inputs */}
+                    <div class="px-4 pb-4 grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs font-medium text-zinc-500 mb-1 block">From</label>
+                            <input
+                                type="date"
+                                value={fromDate()}
+                                max={toDate() || undefined}
+                                onInput={(e) => setFromDate(e.currentTarget.value)}
+                                class="w-full border border-zinc-200 rounded-lg px-2.5 py-1.5 text-sm text-black focus:outline-none focus:border-zinc-400 transition-colors"
+                            />
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-zinc-500 mb-1 block">To</label>
+                            <input
+                                type="date"
+                                value={toDate()}
+                                min={fromDate() || undefined}
+                                onInput={(e) => setToDate(e.currentTarget.value)}
+                                class="w-full border border-zinc-200 rounded-lg px-2.5 py-1.5 text-sm text-black focus:outline-none focus:border-zinc-400 transition-colors"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Error */}
+                    <Show when={error()}>
+                        <p class="mx-4 mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error()}</p>
+                    </Show>
+
+                    {/* Footer actions */}
+                    <div class="border-t border-zinc-100 bg-zinc-50 px-4 py-3 flex gap-2">
+                        {/* Weekly Report — pending only */}
+                        <button
+                            onClick={handleWeekly}
+                            disabled={!datesValid() || wkLoading() || dlLoading()}
+                            class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
+                            title="Pending transactions only"
+                        >
+                            <Show
+                                when={wkLoading()}
+                                fallback={
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                }
+                            >
+                                <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                            </Show>
+                            {wkLoading() ? 'Generating...' : 'Weekly Report'}
+                        </button>
+
+                        {/* Download — all transactions */}
+                        <button
+                            onClick={handleDownload}
+                            disabled={!datesValid() || dlLoading() || wkLoading()}
+                            class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
+                            title="All transactions"
+                        >
+                            <Show
+                                when={dlLoading()}
+                                fallback={
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                }
+                            >
+                                <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                            </Show>
+                            {dlLoading() ? 'Downloading...' : 'Download'}
+                        </button>
+                    </div>
+                </div>
+            </Show>
+        </div>
+    );
+}
+
+// ── TotalAmountDisplay ─────────────────────────────────────────────
 
 function TotalAmountDisplay(props: TotalAmountDisplayProps) {
     const totalAmount = createAsync(() =>

@@ -25,8 +25,8 @@ export type ParsedEntry = {
     entity: { raw: string } & MatchResult;
     variant: { raw: string; match: Variant | null };
     rate: number | null;
+    transactionType: 'credit' | 'debit';
     source: { raw: string } & MatchResult;
-    destination: { raw: string } & MatchResult;
     transportCost: number | null;
     vehicleType: string;
     regNo: string;
@@ -39,17 +39,18 @@ export type ParsedEntry = {
 //
 // The input is split into ordered segments by these keyword boundaries:
 //
-//   {qty} {item} {variant?} @{rate} from {source} to {dest} carting @{cost} {vehicleType} {regNo} {status}
+//   {qty} {item} {variant?} @{rate} credit|debit from {source} carting @{cost} {vehicleType} {regNo} {status}
 //
-// Everything is positional. Keywords: "from", "to", "carting".
+// Everything is positional. Keywords: "from", "carting".
 // "@" always prefixes a number (rate or carting cost).
+// Transaction type (credit | debit) appears between @rate and "from".
 // Payment status (paid | pending | advance) at the very end.
 
 type Segments = {
-    core: string;       // "{qty} {item} {variant?} @{rate}"
-    source: string;     // text after "from" until "to"
-    dest: string;       // text after "to" until "carting" or end
-    carting: string;    // text after "carting" until status/end  → "@{cost} {vehicleType} {regNo}"
+    core: string;           // "{qty} {item} {variant?} @{rate}"
+    transactionType: 'credit' | 'debit';
+    source: string;         // text after "from" until "carting" or end
+    carting: string;        // text after "carting" until status/end  → "@{cost} {vehicleType} {regNo}"
     status: 'paid' | 'pending' | 'advance';
 };
 
@@ -66,34 +67,49 @@ function segment(input: string): Segments {
     }
 
     // Split by keyword boundaries (case-insensitive, word-boundary)
-    // We walk left-to-right looking for "from", "to", "carting"
+    // We walk left-to-right looking for "from", "carting"
     const fromIdx = indexOfKeyword(remaining, 'from');
-    const toIdx = indexOfKeyword(remaining, 'to', fromIdx >= 0 ? fromIdx + 4 : 0);
-    const cartingIdx = indexOfKeyword(remaining, 'carting', toIdx >= 0 ? toIdx + 2 : 0);
+    const cartingIdx = indexOfKeyword(remaining, 'carting', fromIdx >= 0 ? fromIdx + 4 : 0);
 
     let core = '';
     let source = '';
-    let dest = '';
     let carting = '';
 
     if (fromIdx >= 0) {
-        core = remaining.slice(0, fromIdx).trim();
-        if (toIdx >= 0) {
-            source = remaining.slice(fromIdx + 4, toIdx).trim(); // len("from") = 4
-            if (cartingIdx >= 0) {
-                dest = remaining.slice(toIdx + 2, cartingIdx).trim(); // len("to") = 2
-                carting = remaining.slice(cartingIdx + 7).trim();     // len("carting") = 7
-            } else {
-                dest = remaining.slice(toIdx + 2).trim();
-            }
+        const beforeFrom = remaining.slice(0, fromIdx).trim();
+        if (cartingIdx >= 0) {
+            source = remaining.slice(fromIdx + 4, cartingIdx).trim(); // len("from") = 4
+            carting = remaining.slice(cartingIdx + 7).trim();         // len("carting") = 7
         } else {
             source = remaining.slice(fromIdx + 4).trim();
         }
+
+        // Extract credit|debit keyword between @rate and "from"
+        const typeRe = /\b(credit|debit)\b/i;
+        const tm = beforeFrom.match(typeRe);
+        let transactionType: 'credit' | 'debit' = 'debit';
+        if (tm) {
+            transactionType = tm[1].toLowerCase() as 'credit' | 'debit';
+            core = (beforeFrom.slice(0, tm.index) + beforeFrom.slice(tm.index! + tm[0].length)).trim();
+        } else {
+            core = beforeFrom;
+        }
+
+        return { core, transactionType, source, carting, status };
+    }
+
+    // No "from" keyword — the whole thing is core, extract type if present
+    const typeRe = /\b(credit|debit)\b/i;
+    const tm = remaining.match(typeRe);
+    let transactionType: 'credit' | 'debit' = 'debit';
+    if (tm) {
+        transactionType = tm[1].toLowerCase() as 'credit' | 'debit';
+        core = (remaining.slice(0, tm.index) + remaining.slice(tm.index! + tm[0].length)).trim();
     } else {
         core = remaining;
     }
 
-    return { core, source, dest, carting, status };
+    return { core, transactionType, source, carting, status };
 }
 
 /** Find keyword at a word boundary, starting search from `start`. Returns -1 if not found. */
@@ -326,12 +342,12 @@ export class QuickEntryParser {
      * Parse a quick-entry string into structured data.
      *
      * Format:
-     *   {qty} {item} {variant?} @{rate} from {source} to {dest} carting @{cost} {vehicleType} {regNo} {paid|pending|advance}
+     *   {qty} {item} {variant?} @{rate} credit|debit from {source} carting @{cost} {vehicleType} {regNo} {paid|pending|advance}
      *
      * Examples:
-     *   30 cement @100 from site A to warehouse B
-     *   50 steel 10x20 @250 from depot to factory carting @200 truck MH12AB1234 pending
-     *   10 sand @50 from quarry to site C advance
+     *   30 cement @100 debit from site A
+     *   50 steel 10x20 @250 credit from depot carting @200 truck MH12AB1234 pending
+     *   10 sand @50 from quarry advance
      */
     parse(input: string): ParsedEntry {
         const segments = segment(input);
@@ -346,9 +362,8 @@ export class QuickEntryParser {
             variantMatch = matchVariant(variantRaw, this.variants, entityResult.match.id);
         }
 
-        // Match source & destination
+        // Match source
         const sourceResult = segments.source ? fuzzySearch(segments.source, this.destinations) : { match: null, suggestions: [] };
-        const destResult = segments.dest ? fuzzySearch(segments.dest, this.destinations) : { match: null, suggestions: [] };
 
         // Parse carting
         const carting = parseCarting(segments.carting);
@@ -364,16 +379,12 @@ export class QuickEntryParser {
         if (segments.source && !sourceResult.match) {
             errors.push(`Source "${segments.source}" not found`);
         }
-        if (segments.dest && !destResult.match) {
-            errors.push(`Destination "${segments.dest}" not found`);
-        }
 
         const complete =
             core.quantity !== null && core.quantity > 0 &&
             !!entityResult.match &&
             core.rate !== null && core.rate >= 0 &&
             !!sourceResult.match &&
-            !!destResult.match &&
             errors.length === 0;
 
         return {
@@ -381,8 +392,8 @@ export class QuickEntryParser {
             entity: { raw: entityRaw, ...entityResult },
             variant: { raw: variantRaw, match: variantMatch },
             rate: core.rate,
+            transactionType: segments.transactionType,
             source: { raw: segments.source, ...sourceResult },
-            destination: { raw: segments.dest, ...destResult },
             transportCost: carting.cost,
             vehicleType: carting.vehicleType,
             regNo: carting.regNo,
@@ -400,7 +411,7 @@ export class QuickEntryParser {
         fd.set('quantity', String(entry.quantity));
         fd.set('rate', String(entry.rate));
         fd.set('source_id', entry.source.match!.id);
-        fd.set('destination_id', entry.destination.match!.id);
+        fd.set('transaction_type', entry.transactionType);
         fd.set('payment_status', entry.paymentStatus);
         fd.set('date', new Date().toISOString().split('T')[0]);
 

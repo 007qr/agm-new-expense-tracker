@@ -16,8 +16,8 @@ type QuickEntryDialogProps = {
     formData: QuickEntryFormData;
 };
 
-const FORMAT_EXAMPLE = '30 cement @100 from site A to warehouse B';
-const FORMAT_FULL = '50 steel 10x20 @250 from depot to factory carting @200 truck MH12AB1234 pending';
+const FORMAT_EXAMPLE = '30 cement @100 debit from site A';
+const FORMAT_FULL = '50 steel 10x20 @250 credit from depot carting @200 truck MH12AB1234 pending';
 
 const QuickEntryDialog: Component<QuickEntryDialogProps> = (props) => {
     const submit = useAction(createExpense);
@@ -56,16 +56,13 @@ const QuickEntryDialog: Component<QuickEntryDialogProps> = (props) => {
     });
 
     // Determine which unmatched field to show suggestions for (first one wins)
-    const activeSuggestions = createMemo((): { label: string; field: 'entity' | 'source' | 'destination'; items: MatchableItem[] } | null => {
+    const activeSuggestions = createMemo((): { label: string; field: 'entity' | 'source'; items: MatchableItem[] } | null => {
         const p = parsed();
         if (p.entity.raw && !p.entity.match && p.entity.suggestions.length > 0) {
             return { label: 'Items', field: 'entity', items: p.entity.suggestions };
         }
         if (p.source.raw && !p.source.match && p.source.suggestions.length > 0) {
             return { label: 'Sources', field: 'source', items: p.source.suggestions };
-        }
-        if (p.destination.raw && !p.destination.match && p.destination.suggestions.length > 0) {
-            return { label: 'Destinations', field: 'destination', items: p.destination.suggestions };
         }
         return null;
     });
@@ -91,9 +88,7 @@ const QuickEntryDialog: Component<QuickEntryDialogProps> = (props) => {
                 }
             }
         } else if (ctx.field === 'source') {
-            updated = replaceSegment(current, 'from', 'to', name);
-        } else if (ctx.field === 'destination') {
-            updated = replaceSegment(current, 'to', 'carting', name);
+            updated = replaceSegment(current, 'from', 'carting', name);
         }
 
         setInput(updated);
@@ -187,11 +182,9 @@ const QuickEntryDialog: Component<QuickEntryDialogProps> = (props) => {
                                 <Show when={parsed().rate !== null && parsed().quantity !== null}>
                                     <Field label="Total" value={fmtCurrency(amount())} ok bold />
                                 </Show>
+                                <Field label="Type" value={parsed().transactionType} ok capitalize />
                                 <Show when={parsed().source.raw}>
                                     <Field label="From" value={parsed().source.match?.name ?? parsed().source.raw} ok={!!parsed().source.match} />
-                                </Show>
-                                <Show when={parsed().destination.raw}>
-                                    <Field label="To" value={parsed().destination.match?.name ?? parsed().destination.raw} ok={!!parsed().destination.match} />
                                 </Show>
                                 <Show when={parsed().transportCost !== null}>
                                     <Field label="Carting" value={fmtCurrency(parsed().transportCost!)} ok />
@@ -302,10 +295,9 @@ function FormatGuide() {
                 <C c="violet-500">{'{variant?}'}</C>{' '}
                 <C c="zinc-400">@</C>
                 <C c="black">{'{rate}'}</C>{' '}
+                <C c="purple-600">credit|debit</C>{' '}
                 <C c="zinc-400">from</C>{' '}
                 <C c="emerald-600">{'{source}'}</C>{' '}
-                <C c="zinc-400">to</C>{' '}
-                <C c="emerald-600">{'{dest}'}</C>{' '}
                 <C c="zinc-400">carting</C>{' '}
                 <C c="zinc-400">@</C>
                 <C c="amber-600">{'{cost}'}</C>{' '}

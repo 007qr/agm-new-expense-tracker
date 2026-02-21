@@ -18,8 +18,8 @@ const loadTransaction = query(async (id: string) => {
                 id: Transaction.id,
                 entity_id: Transaction.entity_id,
                 entity_variant_id: Transaction.entity_variant_id,
-                destination_id: Transaction.destination_id,
                 source_id: Transaction.source_id,
+                type: Transaction.type,
                 payment_status: Transaction.payment_status,
                 transportation_cost_id: Transaction.transportation_cost_id,
                 quantity: Transaction.quantity,
@@ -50,20 +50,21 @@ export const updateExpense = action(async (formData: FormData) => {
     const getBooleanField = (key: string) => formData.get(key) === 'on';
 
     const transactionId = getStringField('transaction_id');
-    const destinationId = getStringField('destination_id');
     const entityId = getStringField('entity_id');
     const entityVariantId = getStringField('entity_variant_id');
     const quantity = getNumericField('quantity');
     const rate = getNumericField('rate');
     const paymentStatus = getStringField('payment_status') as (typeof PaymentStatus)[number];
     const sourceId = getStringField('source_id');
+    const transactionType = getStringField('transaction_type') as 'credit' | 'debit';
     const dateStr = getStringField('date');
     const addTransportationCost = getBooleanField('add_transportation_cost');
     const existingTransportationCostId = getStringField('existing_transportation_cost_id');
     const redirectUrl = getStringField('redirect_url');
 
-    if (!transactionId || !destinationId || !entityId || !paymentStatus || !sourceId)
+    if (!transactionId || !entityId || !paymentStatus || !sourceId)
         return { error: 'Missing required fields.' };
+    if (transactionType !== 'credit' && transactionType !== 'debit') return { error: 'Invalid transaction type.' };
     if (quantity === null || quantity <= 0) return { error: 'Quantity must be a positive number.' };
     if (rate === null || rate < 0) return { error: 'Rate must be a positive number or zero.' };
 
@@ -112,8 +113,8 @@ export const updateExpense = action(async (formData: FormData) => {
             .set({
                 entity_id: entityId,
                 entity_variant_id: entityVariantId || null,
-                destination_id: destinationId,
                 source_id: sourceId,
+                type: transactionType,
                 payment_status: paymentStatus,
                 transportation_cost_id: transportationCostId,
                 quantity: String(quantity),
@@ -198,9 +199,9 @@ function FormContent() {
                         <input type="hidden" name="existing_transportation_cost_id" value={tx().transportation_cost_id ?? ''} />
                         <input type="hidden" name="redirect_url" value={searchParams.redirect ?? ''} />
 
-                        {/* Route */}
+                        {/* Source */}
                         <div class="space-y-5">
-                            <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Route</h2>
+                            <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Source</h2>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <VirtualizedCombobox
                                     name="source_id"
@@ -210,14 +211,11 @@ function FormContent() {
                                     options={destinations()}
                                     defaultValue={tx().source_id ?? ''}
                                 />
-                                <VirtualizedCombobox
-                                    name="destination_id"
-                                    label="Paid To (Destination)"
-                                    placeholder="Search destination..."
-                                    required
-                                    options={destinations()}
-                                    defaultValue={tx().destination_id ?? ''}
-                                />
+                                <SelectInput name="transaction_type" label="Transaction Type" required>
+                                    <option value="" disabled>Select type...</option>
+                                    <option value="debit" selected={tx().type === 'debit'}>Debit</option>
+                                    <option value="credit" selected={tx().type === 'credit'}>Credit</option>
+                                </SelectInput>
                             </div>
                         </div>
 
