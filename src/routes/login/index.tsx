@@ -3,6 +3,7 @@ import { createSignal } from 'solid-js';
 import { authClient } from '~/lib/auth-client';
 
 export default function LoginPage() {
+    const navigate = useNavigate();
     const [pending, setPending] = createSignal(false);
     const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
 
@@ -16,18 +17,16 @@ export default function LoginPage() {
         const email = String(fd.get('email') ?? '').trim();
         const password = String(fd.get('password') ?? '');
 
-        try {
-            await authClient.signIn.email({
-                email,
-                password,
-                callbackURL: '/asd',
-            });
-        } catch (error) {
+        const { data, error } = await authClient.signIn.email({ email, password });
+
+        if (error) {
             setErrorMessage('Invalid email or password');
-            console.error('Login error:', error);
-        } finally {
             setPending(false);
+            return;
         }
+
+        const role = (data as any)?.user?.role as string | undefined;
+        navigate(role === 'warehouse-user' ? '/destination' : '/sites');
     };
 
     return (

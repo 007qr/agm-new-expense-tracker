@@ -366,6 +366,7 @@ export default function ExpenseLedgerPage() {
                         <FormContent
                             defaultSourceId={params.id}
                             noRedirect={true}
+                            hideSource={true}
                             autoFocus={true}
                             onSuccess={() => {
                                 setSheetOpen(false);

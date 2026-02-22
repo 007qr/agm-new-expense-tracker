@@ -104,6 +104,7 @@ type FormContentProps = {
     noRedirect?: boolean;
     onSuccess?: () => void;
     autoFocus?: boolean;
+    hideSource?: boolean;
 };
 
 export function FormContent(props: FormContentProps) {
@@ -152,6 +153,8 @@ export function FormContent(props: FormContentProps) {
         localStorage.setItem(LS_DATE_KEY, val);
     };
 
+    const [transactionType, setTransactionType] = createSignal('');
+
     const [addTransportation, setAddTransportation] = createSignal(false);
     const [vehicleType, setVehicleType] = createSignal('');
     const [regNo, setRegNo] = createSignal('');
@@ -163,31 +166,38 @@ export function FormContent(props: FormContentProps) {
                 <Show when={props.noRedirect}>
                     <input type="hidden" name="no_redirect" value="true" />
                 </Show>
-                {/* Section for Source & Type */}
-                <div class="space-y-5">
-                    <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Source</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <VirtualizedCombobox
-                            name="source_id"
-                            label="Paid From (Source)"
-                            placeholder="Search source..."
-                            required
-                            options={destinations()}
-                            defaultValue={props.defaultSourceId}
-                        />
-                        <SelectInput name="transaction_type" label="Transaction Type" required>
-                            <option value="" disabled selected>Select type...</option>
-                            <option value="debit">Debit</option>
-                            <option value="credit">Credit</option>
-                        </SelectInput>
+                {/* Source: full section or hidden input depending on hideSource */}
+                <Show
+                    when={!props.hideSource}
+                    fallback={<input type="hidden" name="source_id" value={props.defaultSourceId} />}
+                >
+                    <div class="space-y-5">
+                        <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Source</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <VirtualizedCombobox
+                                name="source_id"
+                                label="Paid From (Source)"
+                                placeholder="Search source..."
+                                required
+                                options={destinations()}
+                                defaultValue={props.defaultSourceId}
+                            />
+                            <TransactionTypeToggle value={transactionType()} onChange={setTransactionType} />
+                        </div>
                     </div>
-                </div>
+                    <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
+                </Show>
 
-                <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
+                {/* Transaction Type shown standalone when source is hidden */}
+                <Show when={props.hideSource}>
+                    <TransactionTypeToggle value={transactionType()} onChange={setTransactionType} />
+                </Show>
 
                 {/* Section 1: Main Details */}
                 <div class="space-y-5">
-                    <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Expense Details</h2>
+                    <Show when={!props.hideSource}>
+                        <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Expense Details</h2>
+                    </Show>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <VirtualizedCombobox
                             name="entity_id"
@@ -268,7 +278,9 @@ export function FormContent(props: FormContentProps) {
                     </div>
                 </div>
 
-                <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
+                <Show when={!props.hideSource}>
+                    <div class="w-full h-px bg-zinc-200 border-t border-dashed" />
+                </Show>
 
                 {/* Section 2: Transportation */}
                 <div class="space-y-5">
@@ -321,8 +333,8 @@ export function FormContent(props: FormContentProps) {
                     </div>
                 </Show>
 
-                {/* Submit Button */}
-                <div class="pt-4">
+                {/* Submit Button — sticky at bottom of sheet */}
+                <div class="sticky bottom-0 bg-white -mx-5 px-5 pt-4 pb-4 border-t border-zinc-100">
                     <button
                         type="submit"
                         disabled={submission.pending}
@@ -337,3 +349,37 @@ export function FormContent(props: FormContentProps) {
 }
 
 // --- REUSABLE UI COMPONENTS ---
+
+function TransactionTypeToggle(props: { value: string; onChange: (v: string) => void }) {
+    return (
+        <div class="space-y-1.5">
+            <input type="hidden" name="transaction_type" value={props.value} />
+            <div class="grid grid-cols-2 gap-2">
+                <button
+                    type="button"
+                    onClick={() => props.onChange('credit')}
+                    class="flex flex-col items-center justify-center py-3 px-3 rounded-xl border text-sm font-semibold transition-all"
+                    classList={{
+                        'bg-green-600 border-green-600 text-white shadow-sm': props.value === 'credit',
+                        'bg-white border-zinc-200 text-zinc-500 hover:border-green-400 hover:text-green-700 hover:bg-green-50': props.value !== 'credit',
+                    }}
+                >
+                    <span class="text-base leading-none mb-0.5">↓</span>
+                    <span>Credit <span class="font-normal opacity-80">(Inward)</span></span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => props.onChange('debit')}
+                    class="flex flex-col items-center justify-center py-3 px-3 rounded-xl border text-sm font-semibold transition-all"
+                    classList={{
+                        'bg-orange-500 border-orange-500 text-white shadow-sm': props.value === 'debit',
+                        'bg-white border-zinc-200 text-zinc-500 hover:border-orange-400 hover:text-orange-700 hover:bg-orange-50': props.value !== 'debit',
+                    }}
+                >
+                    <span class="text-base leading-none mb-0.5">↑</span>
+                    <span>Debit <span class="font-normal opacity-80">(Outward)</span></span>
+                </button>
+            </div>
+        </div>
+    );
+}
