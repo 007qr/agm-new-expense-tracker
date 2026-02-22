@@ -1,4 +1,4 @@
-import { createSignal, createMemo, createEffect, Show, For, type Component } from 'solid-js';
+import { createSignal, createMemo, createEffect, onMount, Show, For, type Component } from 'solid-js';
 import { useAction, useSubmission } from '@solidjs/router';
 import Dialog from '@corvu/dialog';
 import { createExpense } from '~/routes/expenses/new/index';
@@ -27,6 +27,20 @@ const QuickEntryDialog: Component<QuickEntryDialogProps> = (props) => {
 
     const [input, setInput] = createSignal('');
     let inputRef: HTMLTextAreaElement | undefined;
+
+    const LS_DATE_KEY = 'expense-form-date';
+    const today = () => new Date().toISOString().split('T')[0];
+    const [date, setDate] = createSignal(today());
+    onMount(() => {
+        const stored = localStorage.getItem(LS_DATE_KEY);
+        if (stored) setDate(stored);
+    });
+
+    const handleDateChange = (e: Event) => {
+        const val = (e.currentTarget as HTMLInputElement).value;
+        setDate(val);
+        localStorage.setItem(LS_DATE_KEY, val);
+    };
 
     // Sync parser data whenever formData prop changes
     createEffect(() => {
@@ -98,7 +112,9 @@ const QuickEntryDialog: Component<QuickEntryDialogProps> = (props) => {
     const handleSubmit = () => {
         const p = parsed();
         if (!p.complete) return;
-        submit(parser.toFormData(p));
+        const fd = parser.toFormData(p);
+        if (date()) fd.set('date', date());
+        submit(fd);
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -134,6 +150,17 @@ const QuickEntryDialog: Component<QuickEntryDialogProps> = (props) => {
                         class="w-full bg-white border border-zinc-200 focus:border-black/40 focus:ring-1 focus:ring-black/10 rounded-xl text-black text-sm px-4 py-3 outline-none resize-none transition-all font-mono"
                         rows={2}
                     />
+
+                    {/* Date */}
+                    <div class="mt-2 flex items-center gap-2">
+                        <label class="text-[10px] font-bold uppercase tracking-wide text-zinc-400 shrink-0">Date</label>
+                        <input
+                            type="date"
+                            value={date()}
+                            onInput={handleDateChange}
+                            class="text-sm text-black bg-white border border-zinc-200 focus:border-black/40 focus:ring-1 focus:ring-black/10 rounded-lg px-2.5 py-1 outline-none transition-all"
+                        />
+                    </div>
 
                     {/* Suggestions */}
                     <Show when={activeSuggestions()}>

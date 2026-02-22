@@ -1,10 +1,13 @@
-import { action, createAsync, query, redirect, useLocation, useParams, useSubmission } from '@solidjs/router';
+import { action, createAsync, query, redirect, revalidate, useLocation, useParams } from '@solidjs/router';
 import { and, desc, eq, getViewSelectedFields, sql, gte, lte } from 'drizzle-orm';
-import { createSignal, createEffect, onCleanup, For, Show, Suspense, useTransition } from 'solid-js';
+import { createSignal, createEffect, onCleanup, onMount, For, Show, Suspense, useTransition } from 'solid-js';
 import DateRangePicker from '~/components/DateRangePicker';
+import Sheet from '~/components/Sheet';
+import { FormContent } from '~/routes/expenses/new/index';
+import { EditFormContent } from '~/routes/expenses/edit/[id]';
 import { db } from '~/drizzle/client';
 import { Transaction, TransactionDetail } from '~/drizzle/schema';
-import { Pagination, PaginationSkeleton } from '~/components/Pagination';
+import { Pagination } from '~/components/Pagination';
 import Breadcrumb from '~/components/Breadcrumb';
 import { loadTotalAmount } from './totalAmount';
 import { serializeDateLocal } from '~/utils/dateUtils';
@@ -63,6 +66,8 @@ export const deleteTransaction = action(async (formData: FormData) => {
 export default function ExpenseLedgerPage() {
     const params = useParams<{ id: string }>();
     const location = useLocation();
+    const [sheetOpen, setSheetOpen] = createSignal(false);
+    const [editingId, setEditingId] = createSignal<string | null>(null);
     const [page, setPage] = createSignal(1);
     const [pageSize, setPageSize] = createSignal(10);
     const entityFilter = () => new URLSearchParams(location.search).get('entity') ?? '';
@@ -86,8 +91,25 @@ export default function ExpenseLedgerPage() {
         ),
     );
     const totalCount = () => data()?.totalCount ?? 0;
-    const deletion = useSubmission(deleteTransaction);
     const [showTotal, setShowTotal] = createSignal(false);
+
+    // Ctrl+A → open New Expense sheet
+    onMount(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (
+                e.ctrlKey &&
+                e.key === 'a' &&
+                !(e.target instanceof HTMLInputElement) &&
+                !(e.target instanceof HTMLTextAreaElement) &&
+                !(e.target instanceof HTMLSelectElement)
+            ) {
+                e.preventDefault();
+                setSheetOpen(true);
+            }
+        };
+        document.addEventListener('keydown', handler);
+        onCleanup(() => document.removeEventListener('keydown', handler));
+    });
 
     return (
         <div class="w-full mx-auto px-4 py-12">
@@ -107,71 +129,91 @@ export default function ExpenseLedgerPage() {
                         onShowTotal={() => setShowTotal(true)}
                     />
                     <ExportPanel destinationId={params.id} />
+                    <button
+                        onClick={() => setSheetOpen(true)}
+                        class="px-4 py-2 bg-black hover:bg-black/80 text-white font-semibold text-sm rounded-lg transition-colors flex items-center gap-2 shadow-sm"
+                        title="New Expense (Ctrl+A)"
+                    >
+                        + New Expense
+                    </button>
                 </div>
             </div>
-            {/* Improved Filter UI */}
+
+            {/* Filter bar */}
             <div class="mb-6 bg-white border border-zinc-200 rounded-lg p-4 shadow-sm">
-                <div class="flex flex-wrap items-center gap-3">
-                    <span class="text-sm font-medium text-zinc-700">Filter by:</span>
-                    <div class="flex items-center gap-2">
-                        <button
-                            onClick={() => {
-                                startTransition(() => {
-                                    setActiveFilter('all');
-                                    setDateRange(null);
-                                });
-                            }}
-                            class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
-                            classList={{
-                                'bg-blue-600 text-white shadow-sm': activeFilter() === 'all',
-                                'bg-zinc-100 text-zinc-700 hover:bg-zinc-200': activeFilter() !== 'all',
-                            }}
-                        >
-                            All Time
-                        </button>
-                        <button
-                            onClick={() => {
-                                startTransition(() => {
-                                    setActiveFilter('7days');
-                                    setDateRange(null);
-                                });
-                            }}
-                            class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
-                            classList={{
-                                'bg-blue-600 text-white shadow-sm': activeFilter() === '7days',
-                                'bg-zinc-100 text-zinc-700 hover:bg-zinc-200': activeFilter() !== '7days',
-                            }}
-                        >
-                            Last 7 Days
-                        </button>
-                        <button
-                            onClick={() => {
-                                startTransition(() => {
-                                    setActiveFilter('30days');
-                                    setDateRange(null);
-                                });
-                            }}
-                            class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
-                            classList={{
-                                'bg-blue-600 text-white shadow-sm': activeFilter() === '30days',
-                                'bg-zinc-100 text-zinc-700 hover:bg-zinc-200': activeFilter() !== '30days',
-                            }}
-                        >
-                            Last 30 Days
-                        </button>
-                        <div class="h-6 w-px bg-zinc-300 mx-1"></div>
-                        <DateRangePicker
-                            value={dateRange()}
-                            onRangeChange={(range) => {
-                                if (range) {
+                <div class="flex items-center justify-between gap-4 flex-wrap">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-sm font-medium text-zinc-700">Filter by:</span>
+                        <div class="flex items-center gap-2">
+                            <button
+                                onClick={() => {
                                     startTransition(() => {
-                                        setDateRange(range);
-                                        setActiveFilter('custom');
+                                        setActiveFilter('all');
+                                        setDateRange(null);
                                     });
-                                }
-                            }}
-                        />
+                                }}
+                                class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+                                classList={{
+                                    'bg-blue-600 text-white shadow-sm': activeFilter() === 'all',
+                                    'bg-zinc-100 text-zinc-700 hover:bg-zinc-200': activeFilter() !== 'all',
+                                }}
+                            >
+                                All Time
+                            </button>
+                            <button
+                                onClick={() => {
+                                    startTransition(() => {
+                                        setActiveFilter('7days');
+                                        setDateRange(null);
+                                    });
+                                }}
+                                class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+                                classList={{
+                                    'bg-blue-600 text-white shadow-sm': activeFilter() === '7days',
+                                    'bg-zinc-100 text-zinc-700 hover:bg-zinc-200': activeFilter() !== '7days',
+                                }}
+                            >
+                                Last 7d
+                            </button>
+                            <button
+                                onClick={() => {
+                                    startTransition(() => {
+                                        setActiveFilter('30days');
+                                        setDateRange(null);
+                                    });
+                                }}
+                                class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+                                classList={{
+                                    'bg-blue-600 text-white shadow-sm': activeFilter() === '30days',
+                                    'bg-zinc-100 text-zinc-700 hover:bg-zinc-200': activeFilter() !== '30days',
+                                }}
+                            >
+                                Last 30d
+                            </button>
+                            <div class="h-5 w-px bg-zinc-300 mx-0.5"></div>
+                            <DateRangePicker
+                                value={dateRange()}
+                                onRangeChange={(range) => {
+                                    if (range) {
+                                        startTransition(() => {
+                                            setDateRange(range);
+                                            setActiveFilter('custom');
+                                        });
+                                    }
+                                }}
+                            />
+                        </div>
                     </div>
+                    <Show when={totalCount() > 0}>
+                        <Pagination
+                            compact
+                            page={page()}
+                            pageSize={pageSize()}
+                            totalCount={totalCount()}
+                            onPageChange={setPage}
+                            onPageSizeChange={(p) => { setPageSize(p); setPage(1); }}
+                        />
+                    </Show>
                 </div>
                 <Show when={dateRange()}>
                     <div class="mt-3 pt-3 border-t border-zinc-200">
@@ -194,25 +236,15 @@ export default function ExpenseLedgerPage() {
                                 class="ml-2 hover:bg-blue-100 rounded p-0.5 transition-colors"
                                 aria-label="Clear date range"
                             >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    class="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
                         </div>
                     </div>
                 </Show>
             </div>
+
             <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xl shadow-black/5 transition-opacity" classList={{ 'opacity-50': isPending() }}>
                 <div class="overflow-x-auto">
                     <table class="min-w-[1300px] w-full text-left border-collapse">
@@ -291,12 +323,12 @@ export default function ExpenseLedgerPage() {
                                                     </td>
                                                     <td class="py-3 px-3 text-right sticky right-0 bg-white group-hover:bg-zinc-50/80 z-10">
                                                         <div class="flex items-center justify-end gap-3">
-                                                            <a
-                                                                href={`/expenses/edit/${tx.id}?redirect=${encodeURIComponent(location.pathname + location.search)}`}
+                                                            <button
+                                                                onClick={() => setEditingId(tx.id)}
                                                                 class="text-xs font-semibold text-blue-500 hover:text-blue-700"
                                                             >
                                                                 Edit
-                                                            </a>
+                                                            </button>
                                                             <form action={deleteTransaction} method="post">
                                                                 <input type="hidden" name="id" value={tx.id} />
                                                                 <input
@@ -325,32 +357,71 @@ export default function ExpenseLedgerPage() {
                         </tbody>
                     </table>
                 </div>
-                <Suspense
-                    fallback={
-                        <div class="p-4">
-                            <PaginationSkeleton />
-                        </div>
-                    }
-                >
-                    <Show when={totalCount() > 0}>
-                        <div class="border-t border-zinc-200 p-4">
-                            <Pagination
-                                page={page()}
-                                pageSize={pageSize()}
-                                totalCount={totalCount()}
-                                onPageChange={setPage}
-                                onPageSizeChange={(p) => {
-                                    setPageSize(p);
-                                    setPage(1);
+            </div>
+
+            {/* New Expense Sheet */}
+            <Sheet open={sheetOpen()} onClose={() => setSheetOpen(false)} title="New Expense">
+                <Show when={sheetOpen()}>
+                    <Suspense fallback={<SheetSkeleton />}>
+                        <FormContent
+                            defaultSourceId={params.id}
+                            noRedirect={true}
+                            autoFocus={true}
+                            onSuccess={() => {
+                                setSheetOpen(false);
+                                revalidate('expense-transactions-by-destination');
+                            }}
+                        />
+                    </Suspense>
+                </Show>
+            </Sheet>
+
+            {/* Edit Expense Sheet */}
+            <Sheet open={editingId() !== null} onClose={() => setEditingId(null)} title="Edit Expense">
+                <Show when={editingId()}>
+                    {(id) => (
+                        <Suspense fallback={<SheetSkeleton />}>
+                            <EditFormContent
+                                transactionId={id()}
+                                noRedirect={true}
+                                onSuccess={() => {
+                                    setEditingId(null);
+                                    revalidate('expense-transactions-by-destination');
                                 }}
                             />
-                        </div>
-                    </Show>
-                </Suspense>
-            </div>
+                        </Suspense>
+                    )}
+                </Show>
+            </Sheet>
         </div>
     );
 }
+
+const SheetSkeleton = () => (
+    <div class="space-y-6 animate-pulse">
+        <div class="space-y-3">
+            <div class="h-3 w-16 bg-zinc-200 rounded" />
+            <div class="grid grid-cols-2 gap-3">
+                <div class="h-[66px] bg-zinc-200 rounded-xl" />
+                <div class="h-[66px] bg-zinc-200 rounded-xl" />
+            </div>
+        </div>
+        <div class="h-px bg-zinc-200" />
+        <div class="space-y-3">
+            <div class="h-3 w-24 bg-zinc-200 rounded" />
+            <div class="grid grid-cols-2 gap-3">
+                <div class="h-[66px] bg-zinc-200 rounded-xl" />
+                <div class="h-[66px] bg-zinc-200 rounded-xl" />
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="h-[66px] bg-zinc-200 rounded-xl" />
+                <div class="h-[66px] bg-zinc-200 rounded-xl" />
+                <div class="h-[66px] bg-zinc-200 rounded-xl" />
+            </div>
+        </div>
+        <div class="h-[54px] bg-zinc-200 rounded-xl" />
+    </div>
+);
 
 const EmptyState = () => (
     <tr>
@@ -465,7 +536,6 @@ function ExportPanel(props: ExportPanelProps) {
             {/* Popover */}
             <Show when={open()}>
                 <div class="absolute right-0 top-full mt-2 w-80 bg-white border border-zinc-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-                    {/* Header */}
                     <div class="flex items-center justify-between px-4 pt-4 pb-3">
                         <span class="text-sm font-semibold text-black">Select Date Range</span>
                         <button
@@ -479,7 +549,6 @@ function ExportPanel(props: ExportPanelProps) {
                         </button>
                     </div>
 
-                    {/* Date inputs */}
                     <div class="px-4 pb-4 grid grid-cols-2 gap-3">
                         <div>
                             <label class="text-xs font-medium text-zinc-500 mb-1 block">From</label>
@@ -503,14 +572,11 @@ function ExportPanel(props: ExportPanelProps) {
                         </div>
                     </div>
 
-                    {/* Error */}
                     <Show when={error()}>
                         <p class="mx-4 mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error()}</p>
                     </Show>
 
-                    {/* Footer actions */}
                     <div class="border-t border-zinc-100 bg-zinc-50 px-4 py-3 flex gap-2">
-                        {/* Weekly Report — pending only */}
                         <button
                             onClick={handleWeekly}
                             disabled={!datesValid() || wkLoading() || dlLoading()}
@@ -533,7 +599,6 @@ function ExportPanel(props: ExportPanelProps) {
                             {wkLoading() ? 'Generating...' : 'Weekly Report'}
                         </button>
 
-                        {/* Download — all transactions */}
                         <button
                             onClick={handleDownload}
                             disabled={!datesValid() || dlLoading() || wkLoading()}

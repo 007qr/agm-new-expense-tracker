@@ -1,5 +1,4 @@
-import { createMemo, createSignal, For, Show, Suspense } from 'solid-js';
-import type { JSX } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, onMount, Show } from 'solid-js';
 import { action, createAsync, query, redirect, useSubmission } from '@solidjs/router';
 import { db } from '~/drizzle/client';
 import { Entity, Destination, PaymentStatus, TransportationCost, Transaction, EntityVariant } from '~/drizzle/schema';
@@ -86,6 +85,10 @@ export const createExpense = action(async (formData: FormData) => {
             ...(dateStr ? { created_at: new Date(dateStr) } : {}),
         });
 
+        const noRedirect = formData.get('no_redirect') === 'true';
+        if (noRedirect) {
+            return { success: true };
+        }
         throw redirect(`/expenses`);
     } catch (error: unknown) {
         if (error instanceof Response) throw error;
@@ -94,25 +97,34 @@ export const createExpense = action(async (formData: FormData) => {
     }
 });
 
-// --- MAIN COMPONENT ---
+// --- FORM CONTENT ---
 
-export default function NewExpensePage() {
-    return (
-        <div class="w-full flex items-center justify-center p-6 bg-brand min-h-[85vh] font-sans text-black">
-            <div class="w-full max-w-4xl animate-in fade-in zoom-in-95 duration-500">
-                <Suspense fallback={<FormSkeleton />}>
-                    <FormContent />
-                </Suspense>
-            </div>
-        </div>
-    );
-}
+type FormContentProps = {
+    defaultSourceId?: string;
+    noRedirect?: boolean;
+    onSuccess?: () => void;
+    autoFocus?: boolean;
+};
 
-// --- FORM CONTENT & SKELETON ---
-
-function FormContent() {
+export function FormContent(props: FormContentProps) {
     const data = createAsync(() => loadFormData());
     const submission = useSubmission(createExpense);
+
+    createEffect(() => {
+        if ((submission.result as any)?.success === true) {
+            props.onSuccess?.();
+        }
+    });
+
+    let formRef!: HTMLFormElement;
+    onMount(() => {
+        if (props.autoFocus) {
+            setTimeout(() => {
+                const el = formRef?.querySelector('input:not([type=hidden]):not([readonly])') as HTMLInputElement | null;
+                el?.focus();
+            }, 80);
+        }
+    });
 
     const entities = () => data()?.entities ?? [];
     const destinations = () => data()?.destinations ?? [];
@@ -127,6 +139,19 @@ function FormContent() {
 
     const today = () => new Date().toISOString().split('T')[0];
 
+    const LS_DATE_KEY = 'expense-form-date';
+    const [date, setDate] = createSignal(today());
+    onMount(() => {
+        const stored = localStorage.getItem(LS_DATE_KEY);
+        if (stored) setDate(stored);
+    });
+
+    const handleDateChange = (e: Event) => {
+        const val = (e.currentTarget as HTMLInputElement).value;
+        setDate(val);
+        localStorage.setItem(LS_DATE_KEY, val);
+    };
+
     const [addTransportation, setAddTransportation] = createSignal(false);
     const [vehicleType, setVehicleType] = createSignal('');
     const [regNo, setRegNo] = createSignal('');
@@ -134,12 +159,10 @@ function FormContent() {
 
     return (
         <div class="space-y-8">
-            <div class="mb-10">
-                <h1 class="text-2xl font-semibold text-black">Expenses</h1>
-                <p class="text-zinc-600 text-sm mt-1">Record a new expense for this destination.</p>
-            </div>
-
-            <form action={createExpense} method="post" class="space-y-8">
+            <form ref={formRef} action={createExpense} method="post" class="space-y-8">
+                <Show when={props.noRedirect}>
+                    <input type="hidden" name="no_redirect" value="true" />
+                </Show>
                 {/* Section for Source & Type */}
                 <div class="space-y-5">
                     <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Source</h2>
@@ -150,6 +173,7 @@ function FormContent() {
                             placeholder="Search source..."
                             required
                             options={destinations()}
+                            defaultValue={props.defaultSourceId}
                         />
                         <SelectInput name="transaction_type" label="Transaction Type" required>
                             <option value="" disabled selected>Select type...</option>
@@ -172,12 +196,6 @@ function FormContent() {
                             required
                             options={entities()}
                             onValueChange={setSelectedEntityId}
-                            renderOption={(option) => (
-                                <div class="flex items-center justify-between">
-                                    <span>{option.name}</span>
-                                    {option.unit && <span class="text-xs text-zinc-500 ml-2">{option.unit}</span>}
-                                </div>
-                            )}
                         />
 
                         <div
@@ -236,7 +254,7 @@ function FormContent() {
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <TextInput name="date" label="Date" type="date" value={today()} required />
+                        <TextInput name="date" label="Date" type="date" value={date()} onInput={handleDateChange} required />
                         <SelectInput name="payment_status" label="Payment Status" required>
                             <option value="" disabled selected>
                                 Select status...
@@ -314,29 +332,6 @@ function FormContent() {
                     </button>
                 </div>
             </form>
-        </div>
-    );
-}
-
-function FormSkeleton() {
-    return (
-        <div class="space-y-8 animate-pulse">
-            <div class="h-8 w-48 bg-zinc-200 rounded-md" />
-            <div class="space-y-4">
-                <div class="h-3 w-24 bg-zinc-200 rounded" />
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="h-[66px] bg-zinc-200 rounded-xl" />
-                    <div class="h-[66px] bg-zinc-200 rounded-xl" />
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="h-[66px] bg-zinc-200 rounded-xl" />
-                    <div class="h-[66px] bg-zinc-200 rounded-xl" />
-                    <div class="h-[66px] bg-zinc-200 rounded-xl" />
-                </div>
-            </div>
-            <div class="pt-4">
-                <div class="h-[54px] bg-zinc-200 rounded-xl" />
-            </div>
         </div>
     );
 }

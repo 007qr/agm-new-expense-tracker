@@ -1,6 +1,6 @@
 import { createAsync, revalidate, useSubmission } from '@solidjs/router';
 import { asc, sql } from 'drizzle-orm';
-import { createEffect, createSignal, For, Index, Show, Suspense } from 'solid-js';
+import { createEffect, createSignal, For, Index, onCleanup, onMount, Show, Suspense } from 'solid-js';
 import { query } from '@solidjs/router';
 import { db } from '~/drizzle/client';
 import { Entity } from '~/drizzle/schema';
@@ -8,6 +8,12 @@ import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 import Sheet from '~/components/Sheet';
 import { createItem } from '~/routes/expenses/items/new';
 import { loadItem, updateItem } from '~/routes/expenses/items/[id]/edit';
+import { VirtualizedCombobox, type ComboboxOption } from '~/components/VirtualizedCombobox';
+
+const UNITS: ComboboxOption[] = [
+    'bag','brass','cft','cm','cu ft','cu m','day','ft','g','hr',
+    'in','kg','ltr','m','min','mm','nos','pcs','piece','sq ft','sq m','sqm','ton',
+].map((u) => ({ id: u, name: u }));
 
 type VariantInput = {
     id?: string;
@@ -106,6 +112,18 @@ export default function SiteItemsPage() {
         }
     };
 
+    onMount(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!e.ctrlKey || e.key !== 'a') return;
+            const tag = (e.target as HTMLElement).tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            e.preventDefault();
+            openCreateSheet();
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
+    });
+
     const updateVariant = (index: number, field: keyof VariantInput, value: string) => {
         setVariants((prev) => prev.map((variant, idx) => (idx === index ? { ...variant, [field]: value } : variant)));
     };
@@ -179,9 +197,25 @@ export default function SiteItemsPage() {
                                                         class="text-xs font-semibold text-zinc-700 hover:text-zinc-900 border border-zinc-200 rounded-lg px-3 py-1.5 transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
                                                     >
                                                         <Show when={loadingItemId() === item.id}>
-                                                            <svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                            <svg
+                                                                class="animate-spin h-3 w-3"
+                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                            >
+                                                                <circle
+                                                                    class="opacity-25"
+                                                                    cx="12"
+                                                                    cy="12"
+                                                                    r="10"
+                                                                    stroke="currentColor"
+                                                                    stroke-width="4"
+                                                                />
+                                                                <path
+                                                                    class="opacity-75"
+                                                                    fill="currentColor"
+                                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                                />
                                                             </svg>
                                                         </Show>
                                                         Edit
@@ -222,7 +256,10 @@ export default function SiteItemsPage() {
 
             <Sheet
                 open={sheetOpen()}
-                onClose={() => { setSheetOpen(false); resetForm(); }}
+                onClose={() => {
+                    setSheetOpen(false);
+                    resetForm();
+                }}
                 title={isEditing() ? 'Edit Item' : 'New Item'}
             >
                 <form action={currentAction()} method="post" class="flex flex-col gap-6">
@@ -252,31 +289,15 @@ export default function SiteItemsPage() {
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
-                            <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
-                                <label
-                                    for="sheet-unit"
-                                    class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-600 select-none group-focus-within:text-zinc-800 transition-colors"
-                                >
-                                    Unit
-                                </label>
-                                <select
-                                    id="sheet-unit"
-                                    name="unit"
-                                    required
-                                    value={unit()}
-                                    onChange={(e) => setUnit(e.currentTarget.value)}
-                                    class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer"
-                                >
-                                    <option value="" disabled>Select unit...</option>
-                                    <option value="kg">kg</option>
-                                    <option value="ton">ton</option>
-                                    <option value="pcs">pcs</option>
-                                    <option value="m">m</option>
-                                    <option value="sqm">sqm</option>
-                                    <option value="cft">cft</option>
-                                    <option value="ltr">ltr</option>
-                                </select>
-                            </div>
+                            <VirtualizedCombobox
+                                name="unit"
+                                label="Unit"
+                                placeholder="Select unit..."
+                                required
+                                options={UNITS}
+                                defaultValue={unit()}
+                                onValueChange={setUnit}
+                            />
 
                             <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
                                 <label
@@ -293,7 +314,9 @@ export default function SiteItemsPage() {
                                     onChange={(e) => setType(e.currentTarget.value)}
                                     class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer"
                                 >
-                                    <option value="" disabled>Select type...</option>
+                                    <option value="" disabled>
+                                        Select type...
+                                    </option>
                                     <option value="cash">Cash</option>
                                     <option value="payroll">Payroll</option>
                                 </select>
@@ -342,8 +365,18 @@ export default function SiteItemsPage() {
                                                     class="text-zinc-600 hover:text-red-500 transition-colors p-1"
                                                     title="Remove variant"
                                                 >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
-                                                        <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        stroke-width="2"
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        class="w-4 h-4"
+                                                    >
+                                                        <path d="M18 6 6 18" />
+                                                        <path d="m6 6 12 12" />
                                                     </svg>
                                                 </button>
                                             </div>
@@ -351,20 +384,56 @@ export default function SiteItemsPage() {
                                             <div class="grid grid-cols-2 gap-3">
                                                 <div>
                                                     <label class={variantLabelClass}>Length</label>
-                                                    <input type="text" placeholder="0.00" value={variant().length} onInput={(e) => updateVariant(index, 'length', e.currentTarget.value)} class={variantInputClass} />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="0.00"
+                                                        value={variant().length}
+                                                        onInput={(e) =>
+                                                            updateVariant(index, 'length', e.currentTarget.value)
+                                                        }
+                                                        class={variantInputClass}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <label class={variantLabelClass}>Width</label>
-                                                    <input type="text" placeholder="0.00" value={variant().width} onInput={(e) => updateVariant(index, 'width', e.currentTarget.value)} class={variantInputClass} />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="0.00"
+                                                        value={variant().width}
+                                                        onInput={(e) =>
+                                                            updateVariant(index, 'width', e.currentTarget.value)
+                                                        }
+                                                        class={variantInputClass}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <label class={variantLabelClass}>Height</label>
-                                                    <input type="text" placeholder="0.00" value={variant().height} onInput={(e) => updateVariant(index, 'height', e.currentTarget.value)} class={variantInputClass} />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="0.00"
+                                                        value={variant().height}
+                                                        onInput={(e) =>
+                                                            updateVariant(index, 'height', e.currentTarget.value)
+                                                        }
+                                                        class={variantInputClass}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <label class={variantLabelClass}>Dim. Unit</label>
-                                                    <select value={variant().dimension_unit} onChange={(e) => updateVariant(index, 'dimension_unit', e.currentTarget.value)} class={`${variantInputClass} appearance-none cursor-pointer`}>
-                                                        <option value="" disabled>-</option>
+                                                    <select
+                                                        value={variant().dimension_unit}
+                                                        onChange={(e) =>
+                                                            updateVariant(
+                                                                index,
+                                                                'dimension_unit',
+                                                                e.currentTarget.value,
+                                                            )
+                                                        }
+                                                        class={`${variantInputClass} appearance-none cursor-pointer`}
+                                                    >
+                                                        <option value="" disabled>
+                                                            -
+                                                        </option>
                                                         <option value="mm">mm</option>
                                                         <option value="cm">cm</option>
                                                         <option value="m">m</option>
@@ -374,12 +443,32 @@ export default function SiteItemsPage() {
                                                 </div>
                                                 <div>
                                                     <label class={variantLabelClass}>Thickness</label>
-                                                    <input type="text" placeholder="0.00" value={variant().thickness} onInput={(e) => updateVariant(index, 'thickness', e.currentTarget.value)} class={variantInputClass} />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="0.00"
+                                                        value={variant().thickness}
+                                                        onInput={(e) =>
+                                                            updateVariant(index, 'thickness', e.currentTarget.value)
+                                                        }
+                                                        class={variantInputClass}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <label class={variantLabelClass}>Thick. Unit</label>
-                                                    <select value={variant().thickness_unit} onChange={(e) => updateVariant(index, 'thickness_unit', e.currentTarget.value)} class={`${variantInputClass} appearance-none cursor-pointer`}>
-                                                        <option value="" disabled>-</option>
+                                                    <select
+                                                        value={variant().thickness_unit}
+                                                        onChange={(e) =>
+                                                            updateVariant(
+                                                                index,
+                                                                'thickness_unit',
+                                                                e.currentTarget.value,
+                                                            )
+                                                        }
+                                                        class={`${variantInputClass} appearance-none cursor-pointer`}
+                                                    >
+                                                        <option value="" disabled>
+                                                            -
+                                                        </option>
                                                         <option value="mm">mm</option>
                                                         <option value="cm">cm</option>
                                                         <option value="m">m</option>
@@ -400,7 +489,9 @@ export default function SiteItemsPage() {
                     <Show when={submission().result?.success === false}>
                         <div class="px-3 py-2 bg-red-500/10 border border-red-500/10 rounded-lg flex items-center gap-2.5">
                             <div class="w-1 h-1 bg-red-500 rounded-full" />
-                            <p class="text-[11px] text-red-400 font-medium leading-none">{submission().result?.error}</p>
+                            <p class="text-[11px] text-red-400 font-medium leading-none">
+                                {submission().result?.error}
+                            </p>
                         </div>
                     </Show>
 
@@ -410,9 +501,12 @@ export default function SiteItemsPage() {
                         class="w-full bg-secondary hover:bg-black/90 disabled:opacity-50 disabled:cursor-not-allowed text-brand font-semibold text-sm rounded-xl py-3 transition-all active:scale-[0.98]"
                     >
                         {submission().pending
-                            ? (isEditing() ? 'Updating...' : 'Creating...')
-                            : (isEditing() ? 'Update Item' : 'Create Item')
-                        }
+                            ? isEditing()
+                                ? 'Updating...'
+                                : 'Creating...'
+                            : isEditing()
+                              ? 'Update Item'
+                              : 'Create Item'}
                     </button>
                 </form>
             </Sheet>

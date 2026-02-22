@@ -1,5 +1,5 @@
-import { createMemo, createSignal, JSX, Show, Suspense } from 'solid-js';
-import { useLocation } from '@solidjs/router';
+import { createMemo, createSignal, JSX, onCleanup, onMount, Show, Suspense } from 'solid-js';
+import { useLocation, useNavigate } from '@solidjs/router';
 import { ComponentProps } from 'solid-js';
 import Sidebar, { SidebarItem } from './components/Sidebar';
 import { authClient } from '~/lib/auth-client';
@@ -18,7 +18,6 @@ const WAREHOUSE_NAV_ITEMS: SidebarItem[] = [
 const EXPENSE_NAV_ITEMS: SidebarItem[] = [
     { label: 'All sites', href: '/sites', icon: IconGrid },
     { label: 'Site items', href: '/expenses/items', icon: IconGrid },
-    { label: 'Expenses', href: '/expenses/new', icon: IconGrid },
 ];
 
 const ADMIN_NAV_ITEMS: SidebarItem[] = [
@@ -26,7 +25,6 @@ const ADMIN_NAV_ITEMS: SidebarItem[] = [
     { label: 'Godown Items', href: '/items', icon: IconGrid },
     { label: 'Godown New Transaction', href: '/new-transaction', icon: IconGrid },
     { label: 'All Site', href: '/sites', icon: IconGrid },
-    { label: 'New Expense', href: '/expenses/new', icon: IconGrid },
     { label: 'Site items', href: '/expenses/items/new', icon: IconGrid },
 ];
 
@@ -67,6 +65,36 @@ export default function AppRoot(props: { children: JSX.Element }) {
 
     /** Call this to invalidate cached data (e.g. after creating a new item/destination) */
     const invalidateQuickEntryCache = () => setQuickEntryData(null);
+
+    const navigate = useNavigate();
+    onMount(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!canQuickEntry()) return;
+            // Ctrl+K → Quick Entry dialog
+            if (e.ctrlKey && e.key === 'k') {
+                e.preventDefault();
+                if (!quickEntryOpen()) handleQuickEntry();
+                else setQuickEntryOpen(false);
+                return;
+            }
+
+            // Ctrl+I → site items
+            if (e.ctrlKey && e.key === 'i') {
+                e.preventDefault();
+                navigate('/expenses/items');
+                return;
+            }
+
+            // Ctrl+S → all sites
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                navigate('/sites');
+                return;
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
+    });
 
     const navigationItems = createMemo(() => {
         const role = userRole();

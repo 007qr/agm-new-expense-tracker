@@ -1,5 +1,5 @@
 import { createAsync, revalidate, useNavigate, useSubmission } from '@solidjs/router';
-import { For, Suspense, createSignal, createEffect, Show } from 'solid-js';
+import { For, Suspense, createSignal, createEffect, onCleanup, onMount, Show } from 'solid-js';
 import { query } from '@solidjs/router';
 import { db } from '~/drizzle/client';
 import { Destination } from '~/drizzle/schema';
@@ -70,6 +70,18 @@ export default function SitesPage() {
             setIsWarehouse(false);
             revalidate('all-destinations-with-search');
         }
+    });
+
+    onMount(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!e.ctrlKey || e.key !== 'a') return;
+            const tag = (e.target as HTMLElement).tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            e.preventDefault();
+            setSheetOpen(true);
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
     });
 
     return (

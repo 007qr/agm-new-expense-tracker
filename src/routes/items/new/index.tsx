@@ -3,6 +3,12 @@ import { action, redirect, useSubmission } from '@solidjs/router';
 import { db } from '~/drizzle/client';
 import { EntityType, EntityVariantWarehouse, EntityWarehouse } from '~/drizzle/schema';
 import { requireAuth } from '~/lib/require-auth';
+import { VirtualizedCombobox, type ComboboxOption } from '~/components/VirtualizedCombobox';
+
+const UNITS: ComboboxOption[] = [
+    'bag','brass','cm','cu ft','cu m','day','ft','g','hr','in',
+    'kg','ltr','m','min','mm','nos','piece','sq ft','sq m','ton',
+].map((u) => ({ id: u, name: u }));
 
 // ... (Keep your existing types and helper functions exactly the same) ...
 type VariantInput = {
@@ -179,31 +185,13 @@ export default function CreateItemPage() {
                                 />
                             </div>
 
-                            <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
-                                <label
-                                    for="unit"
-                                    class="absolute top-2 left-3.5 text-[10px] font-bold uppercase tracking-widest text-zinc-600 select-none group-focus-within:text-zinc-800 transition-colors"
-                                >
-                                    Unit
-                                </label>
-                                <select
-                                    id="unit"
-                                    name="unit"
-                                    required
-                                    class="w-full bg-transparent text-black text-sm px-3.5 pt-7 pb-2.5 outline-none appearance-none cursor-pointer [&>option]:bg-white [&>option]:text-black"
-                                >
-                                    <option value="" disabled selected>
-                                        Select unit...
-                                    </option>
-                                    <option value="kg">kg</option>
-                                    <option value="ton">ton</option>
-                                    <option value="pcs">pcs</option>
-                                    <option value="m">m</option>
-                                    <option value="sqm">sqm</option>
-                                    <option value="cft">cft</option>
-                                    <option value="ltr">ltr</option>
-                                </select>
-                            </div>
+                            <VirtualizedCombobox
+                                name="unit"
+                                label="Unit"
+                                placeholder="Select unit..."
+                                required
+                                options={UNITS}
+                            />
                         </div>
 
 

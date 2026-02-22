@@ -6,12 +6,54 @@ type PaginationProps = {
     totalCount: number;
     onPageChange: (page: number) => void;
     onPageSizeChange: (size: number) => void;
+    compact?: boolean;
 };
 
 export const Pagination: Component<PaginationProps> = (props) => {
     const totalPages = () => Math.max(1, Math.ceil(props.totalCount / props.pageSize));
     const startIndex = () => (props.totalCount === 0 ? 0 : (props.page - 1) * props.pageSize + 1);
     const endIndex = () => Math.min(props.page * props.pageSize, props.totalCount);
+
+    if (props.compact) {
+        return (
+            <div class="flex items-center gap-2 text-xs text-zinc-600 flex-shrink-0">
+                <select
+                    value={props.pageSize}
+                    onChange={(e) => props.onPageSizeChange(Number(e.currentTarget.value))}
+                    class="h-7 bg-white border border-zinc-200 rounded-md px-2 text-xs text-zinc-700 outline-none cursor-pointer hover:border-zinc-300 transition-colors"
+                >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                </select>
+                <span class="text-zinc-400 tabular-nums whitespace-nowrap">
+                    {startIndex()}–{endIndex()} of {props.totalCount}
+                </span>
+                <div class="flex items-center gap-1">
+                    <button
+                        class="h-7 w-7 flex items-center justify-center rounded-md border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+                        disabled={props.page <= 1}
+                        onClick={() => props.onPageChange(props.page - 1)}
+                        aria-label="Previous page"
+                    >
+                        ‹
+                    </button>
+                    <span class="px-1.5 text-zinc-600 tabular-nums text-xs font-medium whitespace-nowrap">
+                        {props.page} / {totalPages()}
+                    </span>
+                    <button
+                        class="h-7 w-7 flex items-center justify-center rounded-md border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+                        disabled={props.page >= totalPages()}
+                        onClick={() => props.onPageChange(props.page + 1)}
+                        aria-label="Next page"
+                    >
+                        ›
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div class="flex flex-col gap-3 text-sm text-zinc-700 sm:flex-row sm:items-center sm:justify-between">

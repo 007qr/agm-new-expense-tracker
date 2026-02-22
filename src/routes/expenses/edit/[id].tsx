@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show, Suspense } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, Show, Suspense } from 'solid-js';
 import { action, createAsync, query, redirect, useParams, useSearchParams, useSubmission } from '@solidjs/router';
 import { eq } from 'drizzle-orm';
 import { db } from '~/drizzle/client';
@@ -10,7 +10,7 @@ import { loadFormData } from '../new/index';
 import { serializeDateLocal } from '~/utils/dateUtils';
 import { requireAuth } from '~/lib/require-auth';
 
-const loadTransaction = query(async (id: string) => {
+export const loadTransaction = query(async (id: string) => {
     'use server';
     const [rows] = await Promise.all([
         db
@@ -124,6 +124,10 @@ export const updateExpense = action(async (formData: FormData) => {
             })
             .where(eq(Transaction.id, transactionId));
 
+        const noRedirect = formData.get('no_redirect') === 'true';
+        if (noRedirect) {
+            return { success: true };
+        }
         throw redirect(redirectUrl || '/expenses');
     } catch (error: unknown) {
         if (error instanceof Response) throw error;
@@ -132,24 +136,27 @@ export const updateExpense = action(async (formData: FormData) => {
     }
 });
 
-export default function EditExpensePage() {
-    return (
-        <div class="w-full flex items-center justify-center p-6 bg-brand min-h-[85vh] font-sans text-black">
-            <div class="w-full max-w-4xl animate-in fade-in zoom-in-95 duration-500">
-                <Suspense fallback={<FormSkeleton />}>
-                    <FormContent />
-                </Suspense>
-            </div>
-        </div>
-    );
-}
+// --- EDIT FORM CONTENT ---
 
-function FormContent() {
-    const params = useParams<{ id: string }>();
-    const [searchParams] = useSearchParams();
+type EditFormContentProps = {
+    transactionId: string;
+    redirectUrl?: string;
+    noRedirect?: boolean;
+    onSuccess?: () => void;
+};
+
+export function EditFormContent(props: EditFormContentProps) {
     const formData = createAsync(() => loadFormData());
-    const transaction = createAsync(() => loadTransaction(params.id));
+    const transaction = createAsync(() => loadTransaction(props.transactionId));
     const submission = useSubmission(updateExpense);
+
+    createEffect(() => {
+        if ((submission.result as any)?.success === true) {
+            props.onSuccess?.();
+        }
+    });
+
+    let formRef!: HTMLFormElement;
 
     const entities = () => formData()?.entities ?? [];
     const destinations = () => formData()?.destinations ?? [];
@@ -189,15 +196,15 @@ function FormContent() {
         <Show when={transaction()} fallback={<div class="text-center py-12 text-zinc-500">Transaction not found.</div>}>
             {(tx) => (
                 <div class="space-y-8">
-                    <div class="mb-10">
-                        <h1 class="text-2xl font-semibold text-black">Edit Expense</h1>
-                        <p class="text-zinc-600 text-sm mt-1">Update the details of this expense transaction.</p>
-                    </div>
-
-                    <form action={updateExpense} method="post" class="space-y-8">
+                    <form ref={formRef} action={updateExpense} method="post" class="space-y-8">
                         <input type="hidden" name="transaction_id" value={tx().id} />
                         <input type="hidden" name="existing_transportation_cost_id" value={tx().transportation_cost_id ?? ''} />
-                        <input type="hidden" name="redirect_url" value={searchParams.redirect ?? ''} />
+                        <Show when={props.noRedirect}>
+                            <input type="hidden" name="no_redirect" value="true" />
+                        </Show>
+                        <Show when={!props.noRedirect && props.redirectUrl}>
+                            <input type="hidden" name="redirect_url" value={props.redirectUrl} />
+                        </Show>
 
                         {/* Source */}
                         <div class="space-y-5">
@@ -233,12 +240,6 @@ function FormContent() {
                                     options={entities()}
                                     defaultValue={tx().entity_id ?? ''}
                                     onValueChange={setSelectedEntityId}
-                                    renderOption={(option) => (
-                                        <div class="flex items-center justify-between">
-                                            <span>{option.name}</span>
-                                            {option.unit && <span class="text-xs text-zinc-500 ml-2">{option.unit}</span>}
-                                        </div>
-                                    )}
                                 />
 
                                 <div
@@ -387,6 +388,26 @@ function FormContent() {
                 </div>
             )}
         </Show>
+    );
+}
+
+// --- STANDALONE PAGE (kept for direct URL access) ---
+
+export default function EditExpensePage() {
+    const params = useParams<{ id: string }>();
+    const [searchParams] = useSearchParams();
+
+    return (
+        <div class="w-full flex items-center justify-center p-6 bg-brand min-h-[85vh] font-sans text-black">
+            <div class="w-full max-w-4xl animate-in fade-in zoom-in-95 duration-500">
+                <Suspense fallback={<FormSkeleton />}>
+                    <EditFormContent
+                        transactionId={params.id}
+                        redirectUrl={searchParams.redirect ?? ''}
+                    />
+                </Suspense>
+            </div>
+        </div>
     );
 }
 

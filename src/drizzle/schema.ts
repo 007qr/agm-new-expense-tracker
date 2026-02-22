@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
-import { relations, sql } from 'drizzle-orm';
-import { bigint, boolean, index, numeric, pgEnum, pgTable, pgView, text, timestamp } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
+import { boolean, index, numeric, pgEnum, pgTable, pgView, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const PaymentStatus = ['paid', 'pending', 'advance'] as const;
 export const TransactionType = ['credit', 'debit'] as const;

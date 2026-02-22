@@ -58,7 +58,6 @@ export const createItem = action(async (formData: FormData): Promise<ActionRespo
     if (!unit) return { success: false, error: 'Unit is required.' };
     if (!isEntityType(type)) return { success: false, error: 'Invalid item type selected.' };
 
-
     let parsedVariants: unknown = [];
     if (variantsRaw) {
         try {
@@ -195,13 +194,26 @@ export default function CreateItemPage() {
                                     <option value="" disabled selected>
                                         Select unit...
                                     </option>
+                                    <option value="bag">bag</option>
+                                    <option value="brass">brass</option>
+                                    <option value="cm">cm</option>
+                                    <option value="cu ft">cu ft</option>
+                                    <option value="cu m">cu m</option>
+                                    <option value="day">day</option>
+                                    <option value="ft">ft</option>
+                                    <option value="g">g</option>
+                                    <option value="hr">hr</option>
+                                    <option value="in">in</option>
                                     <option value="kg">kg</option>
-                                    <option value="ton">ton</option>
-                                    <option value="pcs">pcs</option>
-                                    <option value="m">m</option>
-                                    <option value="sqm">sqm</option>
-                                    <option value="cft">cft</option>
                                     <option value="ltr">ltr</option>
+                                    <option value="m">m</option>
+                                    <option value="min">min</option>
+                                    <option value="mm">mm</option>
+                                    <option value="nos">nos</option>
+                                    <option value="piece">piece</option>
+                                    <option value="sq ft">sq ft</option>
+                                    <option value="sq m">sq m</option>
+                                    <option value="ton">ton</option>{' '}
                                 </select>
                             </div>
                             <div class="group relative bg-white border border-zinc-200 focus-within:border-black/40 focus-within:ring-1 focus-within:ring-black/10 rounded-xl transition-all duration-200">
@@ -225,8 +237,6 @@ export default function CreateItemPage() {
                                 </select>
                             </div>
                         </div>
-
-
 
                         {/* Variants Section */}
                         <div class="space-y-5">
