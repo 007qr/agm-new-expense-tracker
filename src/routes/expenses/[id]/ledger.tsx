@@ -254,7 +254,6 @@ export default function ExpenseLedgerPage() {
                                 <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">Type</th>
                                 <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">Item</th>
                                 <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">Variant</th>
-                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">From/To</th>
                                 <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600 min-w-[120px]">Rate (₹)</th>
                                 <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600">Quantity</th>
                                 <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600 min-w-[130px]">Amount (₹)</th>
@@ -292,9 +291,6 @@ export default function ExpenseLedgerPage() {
                                                     </td>
                                                     <td class="py-3 px-3 text-sm text-zinc-600 whitespace-nowrap">
                                                         {tx.entity_variant || '--'}
-                                                    </td>
-                                                    <td class="py-3 px-3 text-sm text-zinc-700 whitespace-nowrap">
-                                                        {tx.source_name}
                                                     </td>
                                                     <td class="py-3 px-3 text-right text-sm text-zinc-700 whitespace-nowrap tabular-nums">
                                                         {Number(tx.rate).toFixed(2)}

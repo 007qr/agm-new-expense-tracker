@@ -22,39 +22,39 @@ function fmtNum(n: number): string {
 	return n.toFixed(2).replace(/\.?0+$/, '');
 }
 
-/** Format a Date as dd-mm-yyyy (for display labels) */
+/** Format a Date as dd-mm-yyyy (for display labels) — always UTC */
 function fmtDateLabel(d: Date): string {
-	const dd   = String(d.getDate()).padStart(2, '0');
-	const mm   = String(d.getMonth() + 1).padStart(2, '0');
-	const yyyy = d.getFullYear();
+	const dd   = String(d.getUTCDate()).padStart(2, '0');
+	const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+	const yyyy = d.getUTCFullYear();
 	return `${dd}-${mm}-${yyyy}`;
 }
 
-/** Format a Date as yyyy-mm-dd (for sorting keys) */
+/** Format a Date as yyyy-mm-dd (for sorting keys) — always UTC */
 function toDateKey(d: Date): string {
-	const yyyy = d.getFullYear();
-	const mm   = String(d.getMonth() + 1).padStart(2, '0');
-	const dd   = String(d.getDate()).padStart(2, '0');
+	const yyyy = d.getUTCFullYear();
+	const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+	const dd   = String(d.getUTCDate()).padStart(2, '0');
 	return `${yyyy}-${mm}-${dd}`;
 }
 
-/** Return the Monday (local time) of the week containing `d` */
+/** Return the Monday (UTC) of the week containing `d` */
 function weekMonday(d: Date): Date {
-	const day  = d.getDay(); // 0=Sun … 6=Sat
+	const day  = d.getUTCDay(); // 0=Sun … 6=Sat
 	const diff = day === 0 ? -6 : 1 - day;
 	const mon  = new Date(d);
-	mon.setDate(d.getDate() + diff);
-	mon.setHours(0, 0, 0, 0);
+	mon.setUTCDate(d.getUTCDate() + diff);
+	mon.setUTCHours(0, 0, 0, 0);
 	return mon;
 }
 
-/** Format a week range as "dd-mm to dd-mm (yyyy)" */
+/** Format a week range as "dd-mm to dd-mm (yyyy)" — always UTC */
 function fmtWeekLabel(mon: Date): string {
 	const sun = new Date(mon);
-	sun.setDate(mon.getDate() + 6);
+	sun.setUTCDate(mon.getUTCDate() + 6);
 	const short = (dt: Date) =>
-		`${String(dt.getDate()).padStart(2, '0')}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
-	return `${short(mon)} to ${short(sun)} (${mon.getFullYear()})`;
+		`${String(dt.getUTCDate()).padStart(2, '0')}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}`;
+	return `${short(mon)} to ${short(sun)} (${mon.getUTCFullYear()})`;
 }
 
 /** Build the column header for a transaction row */
@@ -188,9 +188,9 @@ export async function GET(event: APIEvent) {
 		return new Response('Missing required query params: from and to (YYYY-MM-DD)', { status: 400 });
 	}
 
-	// Parse dates as local midnight / end-of-day (consistent with the ledger's date filter)
-	const dateFrom = new Date(fromParam + 'T00:00:00');
-	const dateTo   = new Date(toParam   + 'T23:59:59');
+	// Parse dates as UTC midnight / end-of-day so the filter is timezone-agnostic
+	const dateFrom = new Date(fromParam + 'T00:00:00.000Z');
+	const dateTo   = new Date(toParam   + 'T23:59:59.999Z');
 
 	if (isNaN(dateFrom.getTime()) || isNaN(dateTo.getTime())) {
 		return new Response('Invalid date format. Use YYYY-MM-DD.', { status: 400 });
