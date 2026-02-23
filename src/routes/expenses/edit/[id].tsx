@@ -150,8 +150,13 @@ export function EditFormContent(props: EditFormContentProps) {
     const transaction = createAsync(() => loadTransaction(props.transactionId));
     const submission = useSubmission(updateExpense);
 
+    // Capture the result present at mount so we don't react to a stale success
+    // from a previous edit session (the shared useSubmission state persists).
+    let prevResult = submission.result;
     createEffect(() => {
-        if ((submission.result as any)?.success === true) {
+        const result = submission.result as any;
+        if (result !== prevResult && result?.success === true) {
+            prevResult = result;
             props.onSuccess?.();
         }
     });
