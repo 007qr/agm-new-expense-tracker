@@ -153,7 +153,7 @@ export function FormContent(props: FormContentProps) {
         localStorage.setItem(LS_DATE_KEY, val);
     };
 
-    const [transactionType, setTransactionType] = createSignal('');
+    const [transactionType, setTransactionType] = createSignal('credit');
 
     const [addTransportation, setAddTransportation] = createSignal(false);
     const [vehicleType, setVehicleType] = createSignal('');

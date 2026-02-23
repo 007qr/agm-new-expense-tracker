@@ -3,7 +3,7 @@ import { For, Suspense, createSignal, createEffect, onCleanup, onMount, Show } f
 import { query } from '@solidjs/router';
 import { db } from '~/drizzle/client';
 import { Destination } from '~/drizzle/schema';
-import { asc, like, or, sql } from 'drizzle-orm';
+import { asc, ilike, or, sql } from 'drizzle-orm';
 import { debounce } from '~/utils/debounce';
 import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 import Sheet from '~/components/Sheet';
@@ -14,7 +14,7 @@ export const loadSites = query(async (q: string, limit: number, offset: number) 
 
     const term = q?.trim();
     const pattern = term ? `%${term}%` : '';
-    const filters = term ? or(like(Destination.name, pattern)) : undefined;
+    const filters = term ? or(ilike(Destination.name, pattern)) : undefined;
 
     const listQuery = db.select().from(Destination).orderBy(asc(Destination.name)).limit(limit).offset(offset);
     const destinations = await (filters ? listQuery.where(filters) : listQuery);
