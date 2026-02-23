@@ -111,8 +111,11 @@ export function FormContent(props: FormContentProps) {
     const data = createAsync(() => loadFormData());
     const submission = useSubmission(createExpense);
 
+    let prevResult = submission.result;
     createEffect(() => {
-        if ((submission.result as any)?.success === true) {
+        const result = submission.result as any;
+        if (result !== prevResult && result?.success === true) {
+            prevResult = result;
             props.onSuccess?.();
         }
     });
