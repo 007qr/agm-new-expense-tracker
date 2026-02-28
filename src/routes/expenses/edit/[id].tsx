@@ -6,7 +6,7 @@ import { Entity, Destination, PaymentStatus, TransportationCost, Transaction, En
 import { createId } from '@paralleldrive/cuid2';
 import { SelectInput, TextInput } from '~/components/form';
 import { VirtualizedCombobox } from '~/components/VirtualizedCombobox';
-import { loadFormData } from '../new/index';
+import { getFormData } from '../new/index';
 import { serializeDateLocal } from '~/utils/dateUtils';
 import { requireAuth } from '~/lib/require-auth';
 
@@ -146,7 +146,7 @@ type EditFormContentProps = {
 };
 
 export function EditFormContent(props: EditFormContentProps) {
-    const formData = createAsync(() => loadFormData());
+    const formData = createAsync(() => getFormData());
     const transaction = createAsync(() => loadTransaction(props.transactionId));
     const submission = useSubmission(updateExpense);
 

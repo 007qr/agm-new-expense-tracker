@@ -19,6 +19,16 @@ export const loadFormData = query(async () => {
     return { entities, destinations, variants };
 }, 'expense-form-data');
 
+// Client-side singleton — not in the router's query cache, so it is never
+// revalidated after actions. Reference data (entities, destinations, variants)
+// rarely changes, making this safe for the lifetime of a page session.
+let _formDataCache: ReturnType<typeof loadFormData> | null = null;
+export function getFormData() {
+    if (typeof window === 'undefined') return loadFormData(); // SSR: always fresh
+    if (!_formDataCache) _formDataCache = loadFormData();
+    return _formDataCache;
+}
+
 export const createExpense = action(async (formData: FormData) => {
     'use server';
     await requireAuth(['expense-user']);
@@ -108,7 +118,7 @@ type FormContentProps = {
 };
 
 export function FormContent(props: FormContentProps) {
-    const data = createAsync(() => loadFormData());
+    const data = createAsync(() => getFormData());
     const submission = useSubmission(createExpense);
 
     let prevResult = submission.result;
@@ -260,6 +270,7 @@ export function FormContent(props: FormContentProps) {
                             label="Rate (₹)"
                             type="number"
                             step="0.01"
+                            value={rate()}
                             onInput={(e) => setRate(parseFloat(e.currentTarget.value) || 0)}
                             required
                         />

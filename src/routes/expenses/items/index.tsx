@@ -114,9 +114,13 @@ export default function SiteItemsPage() {
 
     onMount(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (!e.ctrlKey || e.key !== 'a') return;
-            const tag = (e.target as HTMLElement).tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            if (!e.ctrlKey || e.code !== 'KeyA') return;
+            if (
+                e.target instanceof HTMLInputElement ||
+                e.target instanceof HTMLTextAreaElement ||
+                e.target instanceof HTMLSelectElement ||
+                (e.target as HTMLElement).isContentEditable
+            ) return;
             e.preventDefault();
             openCreateSheet();
         };

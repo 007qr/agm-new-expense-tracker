@@ -1,4 +1,4 @@
-import { action, createAsync, query, redirect, revalidate, useLocation, useParams } from '@solidjs/router';
+import { action, createAsync, query, redirect, useLocation, useParams } from '@solidjs/router';
 import { and, desc, eq, getViewSelectedFields, sql, gte, lte } from 'drizzle-orm';
 import { createSignal, createEffect, onCleanup, onMount, For, Show, Suspense, useTransition } from 'solid-js';
 import DateRangePicker from '~/components/DateRangePicker';
@@ -98,10 +98,11 @@ export default function ExpenseLedgerPage() {
         const handler = (e: KeyboardEvent) => {
             if (
                 e.ctrlKey &&
-                e.key === 'a' &&
+                e.code === 'KeyA' &&
                 !(e.target instanceof HTMLInputElement) &&
                 !(e.target instanceof HTMLTextAreaElement) &&
-                !(e.target instanceof HTMLSelectElement)
+                !(e.target instanceof HTMLSelectElement) &&
+                !(e.target as HTMLElement).isContentEditable
             ) {
                 e.preventDefault();
                 setSheetOpen(true);
@@ -366,7 +367,7 @@ export default function ExpenseLedgerPage() {
                             autoFocus={true}
                             onSuccess={() => {
                                 setSheetOpen(false);
-                                revalidate('expense-transactions-by-destination');
+                                setShowTotal(false);
                             }}
                         />
                     </Suspense>
@@ -383,7 +384,7 @@ export default function ExpenseLedgerPage() {
                                 noRedirect={true}
                                 onSuccess={() => {
                                     setEditingId(null);
-                                    revalidate('expense-transactions-by-destination');
+                                    setShowTotal(false);
                                 }}
                             />
                         </Suspense>

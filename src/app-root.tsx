@@ -71,7 +71,7 @@ export default function AppRoot(props: { children: JSX.Element }) {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!canQuickEntry()) return;
             // Ctrl+K → Quick Entry dialog
-            if (e.ctrlKey && e.key === 'k') {
+            if (e.ctrlKey && e.code === 'KeyK') {
                 e.preventDefault();
                 if (!quickEntryOpen()) handleQuickEntry();
                 else setQuickEntryOpen(false);
@@ -79,14 +79,14 @@ export default function AppRoot(props: { children: JSX.Element }) {
             }
 
             // Ctrl+I → site items
-            if (e.ctrlKey && e.key === 'i') {
+            if (e.ctrlKey && e.code === 'KeyI') {
                 e.preventDefault();
                 navigate('/expenses/items');
                 return;
             }
 
             // Ctrl+S → all sites
-            if (e.ctrlKey && e.key === 's') {
+            if (e.ctrlKey && e.code === 'KeyS') {
                 e.preventDefault();
                 navigate('/sites');
                 return;
