@@ -3,7 +3,6 @@ import { action, createAsync, query, redirect, useParams, useSearchParams, useSu
 import { eq } from 'drizzle-orm';
 import { db } from '~/drizzle/client';
 import { Entity, Destination, PaymentStatus, TransportationCost, Transaction, EntityVariant } from '~/drizzle/schema';
-import { createId } from '@paralleldrive/cuid2';
 import { SelectInput, TextInput } from '~/components/form';
 import { VirtualizedCombobox } from '~/components/VirtualizedCombobox';
 import { getFormData } from '../new/index';
@@ -71,58 +70,59 @@ export const updateExpense = action(async (formData: FormData) => {
     const amount = quantity * rate;
 
     try {
-        let transportationCostId: string | null = null;
+        await db.transaction(async (tx) => {
+            let transportationCostId: string | null = null;
 
-        if (addTransportationCost) {
-            const vehicleType = getStringField('vehicle_type');
-            const regNo = getStringField('reg_no');
-            const transportationCostAmount = getNumericField('transportation_cost');
+            if (addTransportationCost) {
+                const vehicleType = getStringField('vehicle_type');
+                const regNo = getStringField('reg_no');
+                const transportationCostAmount = getNumericField('transportation_cost');
 
-            if (transportationCostAmount !== null && transportationCostAmount > 0) {
-                if (existingTransportationCostId) {
-                    await db
-                        .update(TransportationCost)
-                        .set({
-                            entity_id: entityId,
-                            vehicle_type: vehicleType,
-                            reg_no: regNo,
-                            cost: String(transportationCostAmount),
-                        })
-                        .where(eq(TransportationCost.id, existingTransportationCostId));
-                    transportationCostId = existingTransportationCostId;
-                } else {
-                    const [tc] = await db
-                        .insert(TransportationCost)
-                        .values({
-                            id: 'tc_' + createId(),
-                            entity_id: entityId,
-                            vehicle_type: vehicleType,
-                            reg_no: regNo,
-                            cost: String(transportationCostAmount),
-                        })
-                        .returning({ id: TransportationCost.id });
-                    transportationCostId = tc.id;
+                if (transportationCostAmount !== null && transportationCostAmount > 0) {
+                    if (existingTransportationCostId) {
+                        await tx
+                            .update(TransportationCost)
+                            .set({
+                                entity_id: entityId,
+                                vehicle_type: vehicleType,
+                                reg_no: regNo,
+                                cost: String(transportationCostAmount),
+                            })
+                            .where(eq(TransportationCost.id, existingTransportationCostId));
+                        transportationCostId = existingTransportationCostId;
+                    } else {
+                        const [tc] = await tx
+                            .insert(TransportationCost)
+                            .values({
+                                entity_id: entityId,
+                                vehicle_type: vehicleType,
+                                reg_no: regNo,
+                                cost: String(transportationCostAmount),
+                            })
+                            .returning({ id: TransportationCost.id });
+                        transportationCostId = tc.id;
+                    }
                 }
+            } else if (existingTransportationCostId) {
+                await tx.delete(TransportationCost).where(eq(TransportationCost.id, existingTransportationCostId));
             }
-        } else if (existingTransportationCostId) {
-            await db.delete(TransportationCost).where(eq(TransportationCost.id, existingTransportationCostId));
-        }
 
-        await db
-            .update(Transaction)
-            .set({
-                entity_id: entityId,
-                entity_variant_id: entityVariantId || null,
-                source_id: sourceId,
-                type: transactionType,
-                payment_status: paymentStatus,
-                transportation_cost_id: transportationCostId,
-                quantity: String(quantity),
-                rate: String(rate),
-                amount: String(amount),
-                ...(dateStr ? { created_at: new Date(dateStr) } : {}),
-            })
-            .where(eq(Transaction.id, transactionId));
+            await tx
+                .update(Transaction)
+                .set({
+                    entity_id: entityId,
+                    entity_variant_id: entityVariantId || null,
+                    source_id: sourceId,
+                    type: transactionType,
+                    payment_status: paymentStatus,
+                    transportation_cost_id: transportationCostId,
+                    quantity: String(quantity),
+                    rate: String(rate),
+                    amount: String(amount),
+                    ...(dateStr ? { created_at: new Date(dateStr) } : {}),
+                })
+                .where(eq(Transaction.id, transactionId));
+        });
 
         const noRedirect = formData.get('no_redirect') === 'true';
         if (noRedirect) {

@@ -34,6 +34,7 @@ export const Transaction = pgTable(
     },
     (table) => [
         index('transaction_entity_id_idx').on(table.entity_id),
+        index('transaction_source_id_idx').on(table.source_id),
         index('transaction_created_at_idx').on(table.created_at),
     ],
 );
