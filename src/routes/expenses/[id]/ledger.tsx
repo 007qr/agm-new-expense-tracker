@@ -12,6 +12,7 @@ import Breadcrumb from '~/components/Breadcrumb';
 import { loadTotalAmount } from './totalAmount';
 import { serializeDateLocal } from '~/utils/dateUtils';
 import { requireAuth } from '~/lib/require-auth';
+import { createHotkey } from '@tanstack/solid-hotkeys';
 
 export const loadTransactions = query(
     async (
@@ -23,14 +24,22 @@ export const loadTransactions = query(
         dateRange: { from: string; to: string } | null,
     ) => {
         'use server';
-        const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d; };
+        const daysAgo = (n: number) => {
+            const d = new Date();
+            d.setDate(d.getDate() - n);
+            return d;
+        };
         const dateFilter =
-            filter === '7days'  ? gte(TransactionDetail.created_at, daysAgo(7)) :
-            filter === '30days' ? gte(TransactionDetail.created_at, daysAgo(30)) :
-            filter === 'custom' && dateRange ? and(
-                gte(TransactionDetail.created_at, new Date(dateRange.from + 'T00:00:00')),
-                lte(TransactionDetail.created_at, new Date(dateRange.to + 'T23:59:59')),
-            ) : undefined;
+            filter === '7days'
+                ? gte(TransactionDetail.created_at, daysAgo(7))
+                : filter === '30days'
+                  ? gte(TransactionDetail.created_at, daysAgo(30))
+                  : filter === 'custom' && dateRange
+                    ? and(
+                          gte(TransactionDetail.created_at, new Date(dateRange.from + 'T00:00:00')),
+                          lte(TransactionDetail.created_at, new Date(dateRange.to + 'T23:59:59')),
+                      )
+                    : undefined;
 
         const results = await db
             .select({
@@ -38,11 +47,13 @@ export const loadTransactions = query(
                 total_count: sql<number>`COUNT(*) OVER()`.as('total_count'),
             })
             .from(TransactionDetail)
-            .where(and(
-                eq(TransactionDetail.source_id, dest),
-                entity?.trim() ? eq(TransactionDetail.entity_id, entity.trim()) : undefined,
-                dateFilter,
-            ))
+            .where(
+                and(
+                    eq(TransactionDetail.source_id, dest),
+                    entity?.trim() ? eq(TransactionDetail.entity_id, entity.trim()) : undefined,
+                    dateFilter,
+                ),
+            )
             .orderBy(desc(TransactionDetail.created_at))
             .limit(limit)
             .offset(offset);
@@ -76,9 +87,7 @@ export default function ExpenseLedgerPage() {
     const [isPending, startTransition] = useTransition();
     const serializedDateRange = () => {
         const range = dateRange();
-        return range
-            ? { from: serializeDateLocal(range.from), to: serializeDateLocal(range.to) }
-            : null;
+        return range ? { from: serializeDateLocal(range.from), to: serializeDateLocal(range.to) } : null;
     };
     const data = createAsync(() =>
         loadTransactions(
@@ -93,29 +102,21 @@ export default function ExpenseLedgerPage() {
     const totalCount = () => data()?.totalCount ?? 0;
     const [showTotal, setShowTotal] = createSignal(false);
 
-    // Ctrl+A → open New Expense sheet
-    onMount(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (
-                e.ctrlKey &&
-                e.code === 'KeyA' &&
-                !(e.target instanceof HTMLInputElement) &&
-                !(e.target instanceof HTMLTextAreaElement) &&
-                !(e.target instanceof HTMLSelectElement) &&
-                !(e.target as HTMLElement).isContentEditable
-            ) {
-                e.preventDefault();
-                setSheetOpen(true);
-            }
-        };
-        document.addEventListener('keydown', handler);
-        onCleanup(() => document.removeEventListener('keydown', handler));
+    createHotkey('Control+A', (event) => {
+        event.preventDefault();
+        setSheetOpen(true);
     });
 
     return (
         <div class="w-full mx-auto px-4 py-12">
             <div class="mb-4">
-                <Breadcrumb items={[{ label: 'All sites', href: '/sites' }, { label: 'Expense' },{ label: data()?.destination ?? 'Site' }]} />
+                <Breadcrumb
+                    items={[
+                        { label: 'All sites', href: '/sites' },
+                        { label: 'Expense' },
+                        { label: data()?.destination ?? 'Site' },
+                    ]}
+                />
             </div>
             <div class="mb-8 flex justify-between items-start">
                 <div>
@@ -212,20 +213,42 @@ export default function ExpenseLedgerPage() {
                             pageSize={pageSize()}
                             totalCount={totalCount()}
                             onPageChange={setPage}
-                            onPageSizeChange={(p) => { setPageSize(p); setPage(1); }}
+                            onPageSizeChange={(p) => {
+                                setPageSize(p);
+                                setPage(1);
+                            }}
                         />
                     </Show>
                 </div>
                 <Show when={dateRange()}>
                     <div class="mt-3 pt-3 border-t border-zinc-200">
                         <div class="inline-flex items-center bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium px-3 py-1.5 rounded-md">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 mr-2"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                />
                             </svg>
                             <span>
-                                {dateRange()!.from.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                {dateRange()!.from.toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                })}
                                 {' → '}
-                                {dateRange()!.to.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                {dateRange()!.to.toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                })}
                             </span>
                             <button
                                 onClick={() => {
@@ -237,8 +260,19 @@ export default function ExpenseLedgerPage() {
                                 class="ml-2 hover:bg-blue-100 rounded p-0.5 transition-colors"
                                 aria-label="Clear date range"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
                                 </svg>
                             </button>
                         </div>
@@ -246,22 +280,43 @@ export default function ExpenseLedgerPage() {
                 </Show>
             </div>
 
-            <div class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xl shadow-black/5 transition-opacity" classList={{ 'opacity-50': isPending() }}>
+            <div
+                class="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xl shadow-black/5 transition-opacity"
+                classList={{ 'opacity-50': isPending() }}
+            >
                 <div class="overflow-x-auto">
                     <table class="min-w-[1300px] w-full text-left border-collapse">
                         <thead>
                             <tr class="border-b border-zinc-200 bg-zinc-50">
-                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600 sticky left-0 bg-zinc-50 z-10">Date</th>
+                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600 sticky left-0 bg-zinc-50 z-10">
+                                    Date
+                                </th>
                                 <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">Type</th>
                                 <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">Item</th>
-                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">Variant</th>
-                                <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600 min-w-[120px]">Rate (₹)</th>
-                                <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600">Quantity</th>
-                                <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600 min-w-[130px]">Amount (₹)</th>
-                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">Payment</th>
-                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">Vehicle</th>
-                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">Reg. No.</th>
-                                <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600 min-w-[130px]">Transport (₹)</th>
+                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">
+                                    Variant
+                                </th>
+                                <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600 min-w-[120px]">
+                                    Rate (₹)
+                                </th>
+                                <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600">
+                                    Quantity
+                                </th>
+                                <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600 min-w-[130px]">
+                                    Amount (₹)
+                                </th>
+                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">
+                                    Payment
+                                </th>
+                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">
+                                    Vehicle
+                                </th>
+                                <th class="py-3 px-3 text-xs font-bold uppercase tracking-wider text-zinc-600">
+                                    Reg. No.
+                                </th>
+                                <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600 min-w-[130px]">
+                                    Transport (₹)
+                                </th>
                                 <th class="py-3 px-3 text-right text-xs font-bold uppercase tracking-wider text-zinc-600 sticky right-0 bg-zinc-50 z-10"></th>
                             </tr>
                         </thead>
@@ -337,7 +392,8 @@ export default function ExpenseLedgerPage() {
                                                                     type="submit"
                                                                     class="text-xs font-semibold text-red-500 hover:text-red-700"
                                                                     onClick={(e) =>
-                                                                        !confirm('Delete transaction?') && e.preventDefault()
+                                                                        !confirm('Delete transaction?') &&
+                                                                        e.preventDefault()
                                                                     }
                                                                 >
                                                                     Delete
@@ -433,19 +489,45 @@ const TableSkeleton = () => (
     <For each={Array(5)}>
         {() => (
             <tr class="animate-pulse">
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-20"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-14"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-28"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-24"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-20"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-16"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-14"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-18"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-16"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-20"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-22"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-16"></div></td>
-                <td class="py-3.5 px-3"><div class="h-4 bg-zinc-100 rounded w-12"></div></td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-20"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-14"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-28"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-24"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-20"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-16"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-14"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-18"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-16"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-20"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-22"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-16"></div>
+                </td>
+                <td class="py-3.5 px-3">
+                    <div class="h-4 bg-zinc-100 rounded w-12"></div>
+                </td>
             </tr>
         )}
     </For>
@@ -464,12 +546,12 @@ type TotalAmountDisplayProps = {
 type ExportPanelProps = { destinationId: string };
 
 function ExportPanel(props: ExportPanelProps) {
-    const [open, setOpen]               = createSignal(false);
-    const [fromDate, setFromDate]       = createSignal('');
-    const [toDate, setToDate]           = createSignal('');
-    const [dlLoading, setDlLoading]     = createSignal(false);
-    const [wkLoading, setWkLoading]     = createSignal(false);
-    const [error, setError]             = createSignal('');
+    const [open, setOpen] = createSignal(false);
+    const [fromDate, setFromDate] = createSignal('');
+    const [toDate, setToDate] = createSignal('');
+    const [dlLoading, setDlLoading] = createSignal(false);
+    const [wkLoading, setWkLoading] = createSignal(false);
+    const [error, setError] = createSignal('');
     let containerRef!: HTMLDivElement;
 
     createEffect(() => {
@@ -519,15 +601,37 @@ function ExportPanel(props: ExportPanelProps) {
         <div ref={containerRef} class="relative">
             {/* Trigger */}
             <button
-                onClick={() => { setOpen(!open()); setError(''); }}
+                onClick={() => {
+                    setOpen(!open());
+                    setError('');
+                }}
                 class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm rounded-lg transition-colors flex items-center gap-2 shadow-sm"
             >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="2"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
                 </svg>
                 Export
-                <svg viewBox="0 0 20 20" fill="currentColor" class={`h-3 w-3 transition-transform duration-150 ${open() ? 'rotate-180' : ''}`}>
-                    <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                <svg
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class={`h-3 w-3 transition-transform duration-150 ${open() ? 'rotate-180' : ''}`}
+                >
+                    <path
+                        fill-rule="evenodd"
+                        d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                        clip-rule="evenodd"
+                    />
                 </svg>
             </button>
 
@@ -571,7 +675,9 @@ function ExportPanel(props: ExportPanelProps) {
                     </div>
 
                     <Show when={error()}>
-                        <p class="mx-4 mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error()}</p>
+                        <p class="mx-4 mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                            {error()}
+                        </p>
                     </Show>
 
                     <div class="border-t border-zinc-100 bg-zinc-50 px-4 py-3 flex gap-2">
@@ -584,14 +690,36 @@ function ExportPanel(props: ExportPanelProps) {
                             <Show
                                 when={wkLoading()}
                                 fallback={
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="h-3.5 w-3.5"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                        />
                                     </svg>
                                 }
                             >
                                 <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    <circle
+                                        class="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        stroke-width="4"
+                                    />
+                                    <path
+                                        class="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                    />
                                 </svg>
                             </Show>
                             {wkLoading() ? 'Generating...' : 'Weekly Report'}
@@ -606,14 +734,36 @@ function ExportPanel(props: ExportPanelProps) {
                             <Show
                                 when={dlLoading()}
                                 fallback={
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="h-3.5 w-3.5"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                        />
                                     </svg>
                                 }
                             >
                                 <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    <circle
+                                        class="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        stroke-width="4"
+                                    />
+                                    <path
+                                        class="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                    />
                                 </svg>
                             </Show>
                             {dlLoading() ? 'Downloading...' : 'Download'}
@@ -629,9 +779,7 @@ function ExportPanel(props: ExportPanelProps) {
 
 function TotalAmountDisplay(props: TotalAmountDisplayProps) {
     const totalAmount = createAsync(() =>
-        props.showTotal
-            ? loadTotalAmount(props.destinationId, props.filter, props.dateRange)
-            : Promise.resolve(null)
+        props.showTotal ? loadTotalAmount(props.destinationId, props.filter, props.dateRange) : Promise.resolve(null),
     );
 
     return (
@@ -640,24 +788,13 @@ function TotalAmountDisplay(props: TotalAmountDisplayProps) {
             <Show
                 when={props.showTotal}
                 fallback={
-                    <button
-                        onClick={props.onShowTotal}
-                        class="text-blue-600 hover:underline text-sm"
-                    >
+                    <button onClick={props.onShowTotal} class="text-blue-600 hover:underline text-sm">
                         Show Total
                     </button>
                 }
             >
-                <Suspense
-                    fallback={
-                        <div class="text-2xl font-bold text-black animate-pulse">
-                            ₹...
-                        </div>
-                    }
-                >
-                    <span class="text-2xl font-bold text-black">
-                        ₹{Number(totalAmount() ?? 0).toFixed(2)}
-                    </span>
+                <Suspense fallback={<div class="text-2xl font-bold text-black animate-pulse">₹...</div>}>
+                    <span class="text-2xl font-bold text-black">₹{Number(totalAmount() ?? 0).toFixed(2)}</span>
                 </Suspense>
             </Show>
         </div>

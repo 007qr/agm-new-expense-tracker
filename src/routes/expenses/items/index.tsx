@@ -9,10 +9,32 @@ import Sheet from '~/components/Sheet';
 import { createItem } from '~/routes/expenses/items/new';
 import { loadItem, updateItem } from '~/routes/expenses/items/[id]/edit';
 import { VirtualizedCombobox, type ComboboxOption } from '~/components/VirtualizedCombobox';
+import { createHotkey } from '@tanstack/solid-hotkeys';
 
 const UNITS: ComboboxOption[] = [
-    'bag','brass','cft','cm','cu ft','cu m','day','ft','g','hr',
-    'in','kg','ltr','m','min','mm','nos','pcs','piece','sq ft','sq m','sqm','ton',
+    'bag',
+    'brass',
+    'cft',
+    'cm',
+    'cu ft',
+    'cu m',
+    'day',
+    'ft',
+    'g',
+    'hr',
+    'in',
+    'kg',
+    'ltr',
+    'm',
+    'min',
+    'mm',
+    'nos',
+    'pcs',
+    'piece',
+    'sq ft',
+    'sq m',
+    'sqm',
+    'ton',
 ].map((u) => ({ id: u, name: u }));
 
 type VariantInput = {
@@ -112,20 +134,9 @@ export default function SiteItemsPage() {
         }
     };
 
-    onMount(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (!e.ctrlKey || e.code !== 'KeyA') return;
-            if (
-                e.target instanceof HTMLInputElement ||
-                e.target instanceof HTMLTextAreaElement ||
-                e.target instanceof HTMLSelectElement ||
-                (e.target as HTMLElement).isContentEditable
-            ) return;
-            e.preventDefault();
-            openCreateSheet();
-        };
-        document.addEventListener('keydown', handleKeyDown);
-        onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
+    createHotkey('Control+A', (event) => {
+        event.preventDefault();
+        openCreateSheet();
     });
 
     const updateVariant = (index: number, field: keyof VariantInput, value: string) => {

@@ -5,6 +5,7 @@ import Sidebar, { SidebarItem } from './components/Sidebar';
 import { authClient } from '~/lib/auth-client';
 import QuickEntryDialog, { type QuickEntryFormData } from './components/QuickEntryDialog';
 import { loadFormData } from '~/routes/expenses/new/index';
+import { createHotkey } from '@tanstack/solid-hotkeys';
 
 const PUBLIC_ROUTES = new Set(['/login', '/signup']);
 
@@ -63,37 +64,22 @@ export default function AppRoot(props: { children: JSX.Element }) {
         }
     };
 
-    /** Call this to invalidate cached data (e.g. after creating a new item/destination) */
-    const invalidateQuickEntryCache = () => setQuickEntryData(null);
-
     const navigate = useNavigate();
-    onMount(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (!canQuickEntry()) return;
-            // Ctrl+K → Quick Entry dialog
-            if (e.ctrlKey && e.code === 'KeyK') {
-                e.preventDefault();
-                if (!quickEntryOpen()) handleQuickEntry();
-                else setQuickEntryOpen(false);
-                return;
-            }
 
-            // Ctrl+I → site items
-            if (e.ctrlKey && e.code === 'KeyI') {
-                e.preventDefault();
-                navigate('/expenses/items');
-                return;
-            }
+    createHotkey('Control+S', (event) => {
+        event.preventDefault();
+        navigate('/sites');
+    });
 
-            // Ctrl+S → all sites
-            if (e.ctrlKey && e.code === 'KeyS') {
-                e.preventDefault();
-                navigate('/sites');
-                return;
-            }
-        };
-        document.addEventListener('keydown', handleKeyDown);
-        onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
+    createHotkey('Control+I', (event) => {
+        event.preventDefault();
+        navigate('/expenses/items');
+    });
+
+    createHotkey('Control+K', (event) => {
+        event.preventDefault();
+        if (!quickEntryOpen()) handleQuickEntry();
+        else setQuickEntryOpen(false);
     });
 
     const navigationItems = createMemo(() => {

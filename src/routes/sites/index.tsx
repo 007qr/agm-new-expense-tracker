@@ -9,6 +9,7 @@ import { Pagination, PaginationSkeleton } from '~/components/Pagination';
 import Sheet from '~/components/Sheet';
 import { createDestination } from '~/routes/create-destination';
 import { requireAuth } from '~/lib/require-auth';
+import { createHotkey } from '@tanstack/solid-hotkeys';
 
 export const loadSites = query(async (q: string, limit: number, offset: number) => {
     'use server';
@@ -114,20 +115,9 @@ export default function SitesPage() {
         }
     });
 
-    onMount(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (!e.ctrlKey || e.code !== 'KeyA') return;
-            if (
-                e.target instanceof HTMLInputElement ||
-                e.target instanceof HTMLTextAreaElement ||
-                e.target instanceof HTMLSelectElement ||
-                (e.target as HTMLElement).isContentEditable
-            ) return;
-            e.preventDefault();
-            setSheetOpen(true);
-        };
-        document.addEventListener('keydown', handleKeyDown);
-        onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
+    createHotkey('Control+A', (event) => {
+        event.preventDefault();
+        setSheetOpen(true);
     });
 
     return (
@@ -158,10 +148,7 @@ export default function SitesPage() {
                         placeholder="Search sites..."
                     />
                 </div>
-                <button
-                    onClick={() => setSheetOpen(true)}
-                    class="bg-secondary text-brand px-4 py-2 rounded-md md:ml-4"
-                >
+                <button onClick={() => setSheetOpen(true)} class="bg-secondary text-brand px-4 py-2 rounded-md md:ml-4">
                     Add New Site
                 </button>
             </div>
@@ -336,7 +323,9 @@ export default function SitesPage() {
                     <Show when={updateSubmission.result?.success === false}>
                         <div class="px-3 py-2 bg-red-500/10 border border-red-500/10 rounded-lg flex items-center gap-2.5">
                             <div class="w-1 h-1 bg-red-500 rounded-full" />
-                            <p class="text-[11px] text-red-400 font-medium leading-none">{updateSubmission.result?.error}</p>
+                            <p class="text-[11px] text-red-400 font-medium leading-none">
+                                {updateSubmission.result?.error}
+                            </p>
                         </div>
                     </Show>
 
